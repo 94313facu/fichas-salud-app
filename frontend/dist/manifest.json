@@ -1,0 +1,22 @@
+{
+  "short_name": "FichasSalud",
+  "name": "Fichas de Salud - Profesional",
+  "description": "Aplicación de fichas clínicas y evoluciones para profesionales de la salud",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#FAF9F6",
+  "theme_color": "#1F4E4A",
+  "display": "standalone",
+  "orientation": "portrait"
+}
