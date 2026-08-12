@@ -93,6 +93,13 @@ const Paciente = sequelize.define('Paciente', {
     defaultValue: {}
   },
 
+  // 4. Odontograma Interactivo (Notación FDI)
+  odontograma: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: {}
+  },
+
   // 4. Preguntas Detalladas de Salud
   alergiasMedicamentos: {
     type: DataTypes.TEXT,

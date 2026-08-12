@@ -55,7 +55,7 @@ const pacientesService = {
   /**
    * Registra una nueva sesión médica vinculada a un tratamiento
    */
-  async createSesion(pacienteId, notas, archivo, tratamientoId, presupuesto = 0, pago = 0) {
+  async createSesion(pacienteId, notas, archivo, tratamientoId, presupuesto = 0, pago = 0, codigoPractica = null, piezaDental = null, caraDental = null, modalidadCobro = 'obra_social') {
     const formData = new FormData();
     if (notas) {
       formData.append('notas', notas);
@@ -66,6 +66,11 @@ const pacientesService = {
     formData.append('presupuesto', parseFloat(presupuesto) || 0);
     formData.append('pago', parseFloat(pago) || 0);
     
+    if (codigoPractica) formData.append('codigoPractica', codigoPractica);
+    if (piezaDental) formData.append('piezaDental', piezaDental);
+    if (caraDental) formData.append('caraDental', caraDental);
+    formData.append('modalidadCobro', modalidadCobro);
+
     if (archivo) {
       formData.append('archivo', archivo);
     }
@@ -126,6 +131,14 @@ const pacientesService = {
         'Content-Type': 'multipart/form-data'
       }
     });
+    return response.data;
+  },
+
+  /**
+   * Actualiza el mapa de odontograma del paciente
+   */
+  async updateOdontograma(pacienteId, odontograma) {
+    const response = await api.put(`/api/pacientes/${pacienteId}/odontograma`, { odontograma });
     return response.data;
   }
 };

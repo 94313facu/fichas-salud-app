@@ -31,6 +31,25 @@ const Turno = sequelize.define('Turno', {
   googleEventId: {
     type: DataTypes.STRING,
     allowNull: true
+  },
+
+  // Campos de facturación odontológica
+  codigoPractica: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  piezaDental: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  caraDental: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  modalidadCobro: {
+    type: DataTypes.ENUM('obra_social', 'particular'),
+    allowNull: false,
+    defaultValue: 'obra_social'
   }
 }, {
   tableName: 'Turnos',

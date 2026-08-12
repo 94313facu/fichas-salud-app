@@ -36,6 +36,25 @@ const Sesion = sequelize.define('Sesion', {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: true,
     defaultValue: 0.00
+  },
+
+  // Campos de facturación odontológica
+  codigoPractica: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  piezaDental: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  caraDental: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  modalidadCobro: {
+    type: DataTypes.ENUM('obra_social', 'particular'),
+    allowNull: false,
+    defaultValue: 'obra_social'
   }
 }, {
   tableName: 'Sesiones',

@@ -5,6 +5,7 @@ const Sesion = require('./Sesion');
 const ObraSocial = require('./ObraSocial');
 const Tratamiento = require('./Tratamiento');
 const Turno = require('./Turno');
+const Practica = require('./Practica');
 
 // Relaciones: Profesional hasMany Paciente
 Profesional.hasMany(Paciente, {
@@ -87,6 +88,24 @@ Turno.belongsTo(Tratamiento, {
   foreignKey: { name: 'tratamientoId', allowNull: true }
 });
 
+// Relaciones: Profesional hasMany Practica
+Profesional.hasMany(Practica, {
+  foreignKey: { name: 'profesionalId', allowNull: false },
+  onDelete: 'CASCADE'
+});
+Practica.belongsTo(Profesional, {
+  foreignKey: { name: 'profesionalId', allowNull: false }
+});
+
+// Relaciones: ObraSocial hasMany Practica (opcional)
+ObraSocial.hasMany(Practica, {
+  foreignKey: { name: 'obraSocialId', allowNull: true },
+  onDelete: 'CASCADE'
+});
+Practica.belongsTo(ObraSocial, {
+  foreignKey: { name: 'obraSocialId', allowNull: true }
+});
+
 module.exports = {
   sequelize,
   Profesional,
@@ -94,5 +113,6 @@ module.exports = {
   Sesion,
   ObraSocial,
   Tratamiento,
-  Turno
+  Turno,
+  Practica
 };

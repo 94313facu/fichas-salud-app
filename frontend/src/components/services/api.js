@@ -12,7 +12,7 @@ const api = axios.create({
 // Interceptor para agregar automáticamente el JWT en las cabeceras de las llamadas
 api.interceptors.request.use(
   (config) => {
-    const token = sessionStorage.getItem('token');
+    const token = localStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -32,8 +32,8 @@ api.interceptors.response.use(
     
     // Si el error es 401 (no autorizado/token expirado), limpiamos la sesión
     if (error.response?.status === 401) {
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
     }
     
     return Promise.reject({

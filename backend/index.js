@@ -21,11 +21,13 @@ const authRoutes = require('./routes/auth');
 const pacientesRoutes = require('./routes/pacientes');
 const obrasSocialesRoutes = require('./routes/obrasSociales');
 const turnosRoutes = require('./routes/turnos');
+const practicasRoutes = require('./routes/practicas');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', pacientesRoutes);
 app.use('/api/obras-sociales', obrasSocialesRoutes);
 app.use('/api/turnos', turnosRoutes);
+app.use('/api/practicas', practicasRoutes);
 
 // Ruta de diagnóstico simple
 app.get('/health', (req, res) => {

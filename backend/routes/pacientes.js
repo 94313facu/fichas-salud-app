@@ -188,6 +188,11 @@ router.get('/:id', async (req, res) => {
           model: ObraSocial,
           attributes: ['id', 'nombre'],
           required: false
+        },
+        {
+          model: Turno,
+          required: false,
+          include: [{ model: Tratamiento, attributes: ['nombre'], required: false }]
         }
       ]
     });
@@ -200,6 +205,9 @@ router.get('/:id', async (req, res) => {
     if (rawPaciente.Sesions) {
       rawPaciente.Sesions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
+    if (rawPaciente.Turnos) {
+      rawPaciente.Turnos.sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora));
+    }
 
     res.json(rawPaciente);
   } catch (error) {
@@ -209,6 +217,32 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /api/pacientes/:id
+// PUT /api/pacientes/:id/odontograma
+// Actualizar el mapa de odontograma del paciente
+router.put('/:id/odontograma', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { odontograma } = req.body;
+
+    const paciente = await Paciente.findOne({
+      where: { id, profesionalId: req.user.id }
+    });
+
+    if (!paciente) {
+      return res.status(404).json({ mensaje: 'Paciente no encontrado.' });
+    }
+
+    await paciente.update({
+      odontograma: odontograma || {}
+    });
+
+    res.json({ mensaje: 'Odontograma actualizado con éxito.', odontograma: paciente.odontograma });
+  } catch (error) {
+    console.error('Error al actualizar odontograma:', error);
+    res.status(500).json({ mensaje: 'Error al actualizar el odontograma.' });
+  }
+});
+
 // Modificar/Editar los datos de un paciente
 router.put('/:id', async (req, res) => {
   try {
@@ -302,8 +336,8 @@ router.put('/:id', async (req, res) => {
 
     res.json(pacienteActualizado);
   } catch (error) {
-    console.error('Error al editar paciente:', error);
-    res.status(500).json({ mensaje: 'Error al actualizar los datos del paciente.' });
+    console.error('Error al actualizar paciente:', error);
+    res.status(500).json({ mensaje: 'Error al actualizar la ficha del paciente.' });
   }
 });
 
@@ -368,7 +402,7 @@ router.post('/:pacienteId/tratamientos', async (req, res) => {
 router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { notas, tratamientoId, presupuesto, pago } = req.body;
+    const { notas, tratamientoId, presupuesto, pago, codigoPractica, piezaDental, caraDental, modalidadCobro } = req.body;
 
     if (!tratamientoId) {
       return res.status(400).json({ mensaje: 'Vincular la evolución a un plan de tratamiento es obligatorio.' });
@@ -417,6 +451,10 @@ router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
       presupuesto: pto,
       pago: pg,
       saldo: sld,
+      codigoPractica: codigoPractica ? codigoPractica.trim() : null,
+      piezaDental: piezaDental ? piezaDental.trim() : null,
+      caraDental: caraDental ? caraDental.trim() : null,
+      modalidadCobro: modalidadCobro || 'obra_social',
       pacienteId: paciente.id,
       tratamientoId: tratamiento.id
     });

@@ -4,6 +4,10 @@ import pacientesService from './services/pacientes.service';
 import obrasSocialesService from './services/obrasSociales.service';
 import EditarPacienteModal from './EditarPacienteModal';
 import EditarSesionModal from './EditarSesionModal';
+import Odontograma from './Odontograma';
+import CrearTurnoModal from './CrearTurnoModal';
+import AdvertenciaFrecuenciaModal from './AdvertenciaFrecuenciaModal';
+import practicasService from './services/practicas.service';
 
 const FichaPaciente = () => {
   const { id } = useParams();
@@ -17,11 +21,21 @@ const FichaPaciente = () => {
   // Modales
   const [showEditPaciente, setShowEditPaciente] = useState(false);
   const [showEditSesion, setShowEditSesion] = useState(false);
+  const [showCrearTurno, setShowCrearTurno] = useState(false);
   const [selectedSesion, setSelectedSesion] = useState(null);
 
   // Nueva evolución
   const [notas, setNotas] = useState('');
-  const [tratamientoId, setTratamientoId] = useState('');
+  const [tratamientoId, setTratamientoId] = useState(''); // Estado de Facturación y Prácticas
+  const [codigoPractica, setCodigoPractica] = useState('');
+  const [nombrePractica, setNombrePractica] = useState('');
+  const [piezaDental, setPiezaDental] = useState('');
+  const [caraDental, setCaraDental] = useState('');
+  const [alcanceNew, setAlcanceNew] = useState('paciente');
+  const [mesesNew, setMesesNew] = useState('12');
+  const [esNuevaPractica, setEsNuevaPractica] = useState(false);
+  const [validacionResult, setValidacionResult] = useState(null);
+  const [showAdvertencia, setShowAdvertencia] = useState(false);
   const [presupuesto, setPresupuesto] = useState('');
   const [pago, setPago] = useState('');
   const [archivo, setArchivo] = useState(null);
@@ -93,7 +107,7 @@ const FichaPaciente = () => {
     }
   };
 
-  // Enviar sesión
+  // Enviar sesión con validación de frecuencia de práctica
   const handleGuardarSesion = async (e) => {
     e.preventDefault();
     if (!notas.trim() && !archivo) {
@@ -108,6 +122,50 @@ const FichaPaciente = () => {
     try {
       setGuardando(true);
       setErrorMsg('');
+
+      // 1. Guardar o actualizar la práctica en el catálogo si ingresó código y nombre
+      if (codigoPractica.trim() && nombrePractica.trim()) {
+        await practicasService.savePractica({
+          codigo: codigoPractica.trim(),
+          nombre: nombrePractica.trim(),
+          alcance: alcanceNew,
+          mesesFrecuencia: parseInt(mesesNew) || 0
+        });
+        setEsNuevaPractica(false);
+      }
+
+      // 2. Ejecutar validación de frecuencia por Obra Social
+      if (codigoPractica.trim()) {
+        const val = await practicasService.validarFrecuencia(
+          id,
+          codigoPractica.trim(),
+          piezaDental,
+          caraDental,
+          null,
+          parseInt(mesesNew) || 0,
+          alcanceNew,
+          nombrePractica.trim()
+        );
+
+        if (!val.valido) {
+          setValidacionResult(val);
+          setShowAdvertencia(true);
+          setGuardando(false);
+          return;
+        }
+      }
+
+      await ejecutarGuardarSesion('obra_social');
+    } catch (err) {
+      setErrorMsg(err.mensaje || 'Error al guardar la sesión.');
+      setGuardando(false);
+    }
+  };
+
+  const ejecutarGuardarSesion = async (modalidadCobro = 'obra_social') => {
+    try {
+      setGuardando(true);
+      setErrorMsg('');
       setMensajeExito('');
 
       await pacientesService.createSesion(
@@ -116,11 +174,19 @@ const FichaPaciente = () => {
         archivo,
         parseInt(tratamientoId),
         presupuesto || 0,
-        pago || 0
+        pago || 0,
+        codigoPractica,
+        piezaDental,
+        caraDental,
+        modalidadCobro
       );
       
       // Limpiar formulario
       setNotas('');
+      setCodigoPractica('');
+      setNombrePractica('');
+      setPiezaDental('');
+      setCaraDental('');
       setPresupuesto('');
       setPago('');
       setArchivo(null);
@@ -136,6 +202,23 @@ const FichaPaciente = () => {
       setErrorMsg(err.mensaje || 'Error al guardar la sesión.');
     } finally {
       setGuardando(false);
+    }
+  };
+
+  const handleCodigoChange = async (val) => {
+    setCodigoPractica(val);
+    if (val.trim().length >= 2) {
+      const search = await practicasService.buscarCodigo(val);
+      if (search.existe) {
+        setNombrePractica(search.practica.nombre);
+        setAlcanceNew(search.practica.alcance || 'paciente');
+        setMesesNew(search.practica.mesesFrecuencia || 0);
+        setEsNuevaPractica(false);
+      } else {
+        setEsNuevaPractica(true);
+      }
+    } else {
+      setEsNuevaPractica(false);
     }
   };
 
@@ -206,6 +289,12 @@ const FichaPaciente = () => {
   const sesionesFiltradas = paciente.Sesions?.filter(s => 
     !filtroTratamientoId || s.tratamientoId === parseInt(filtroTratamientoId)
   ) || [];
+
+  // Obtener próximo turno activo del paciente
+  const turnosFuturos = paciente?.Turnos?.filter(t => 
+    t.estado !== 'Cancelado' && new Date(t.fechaHora) >= new Date(new Date().setHours(0,0,0,0))
+  ) || [];
+  const proximoTurno = turnosFuturos.length > 0 ? turnosFuturos[0] : null;
 
   return (
     <div className="container py-4">
@@ -338,6 +427,93 @@ const FichaPaciente = () => {
                     </select>
                   </div>
 
+                  {/* Código de Práctica y Facturación Odontológica */}
+                  <div className="card p-3 bg-light border mb-3">
+                    <h6 className="font-weight-bold text-primary mb-2" style={{ fontSize: '0.92rem' }}>
+                      <i className="bi bi-tag-fill me-1"></i> Práctica y Facturación Odontológica
+                    </h6>
+                    <div className="row g-2">
+                      <div className="col-12 col-sm-5">
+                        <label className="form-label font-weight-bold mb-1 small">Código de Práctica</label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="Ej. 02.01, 0101"
+                          value={codigoPractica}
+                          onChange={(e) => handleCodigoChange(e.target.value)}
+                          onBlur={(e) => handleCodigoChange(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="col-12 col-sm-7">
+                        <label className="form-label font-weight-bold mb-1 small">Nombre de la Práctica</label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="Ej. Arreglo de caries 1 cara"
+                          value={nombrePractica}
+                          onChange={(e) => setNombrePractica(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Si es una práctica nueva que el profesional carga por primera vez */}
+                      {esNuevaPractica && (
+                        <div className="col-12 mt-2 p-2 bg-white rounded border border-info">
+                          <small className="text-info font-weight-bold d-block mb-1">
+                            <i className="bi bi-info-circle me-1"></i> Código Nuevo: Define las reglas de refacturación para la Obra Social
+                          </small>
+                          <div className="row g-2">
+                            <div className="col-12 col-sm-7">
+                              <label className="form-label mb-1 small">Alcance de Restricción</label>
+                              <select
+                                className="form-select form-select-sm"
+                                value={alcanceNew}
+                                onChange={(e) => setAlcanceNew(e.target.value)}
+                              >
+                                <option value="paciente">Por Paciente (global)</option>
+                                <option value="diente">Por Diente / Pieza Dental</option>
+                                <option value="cara">Por Cara del Diente</option>
+                              </select>
+                            </div>
+                            <div className="col-12 col-sm-5">
+                              <label className="form-label mb-1 small">Frecuencia (Meses)</label>
+                              <input
+                                type="number"
+                                className="form-control form-control-sm"
+                                placeholder="Meses (ej: 12)"
+                                value={mesesNew}
+                                onChange={(e) => setMesesNew(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Pieza y Cara Dental (Opcional) */}
+                      <div className="col-6 col-sm-6 mt-2">
+                        <label className="form-label font-weight-bold mb-1 small">Pieza Dental (Opcional)</label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="Ej. 18, 21"
+                          value={piezaDental}
+                          onChange={(e) => setPiezaDental(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="col-6 col-sm-6 mt-2">
+                        <label className="form-label font-weight-bold mb-1 small">Cara (Opcional)</label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="Ej. Oclusal, Mesial"
+                          value={caraDental}
+                          onChange={(e) => setCaraDental(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Notas */}
                   <div className="mb-3">
                     <label htmlFor="notas" className="form-label font-weight-bold">Notas de evolución</label>
@@ -417,10 +593,82 @@ const FichaPaciente = () => {
                   </button>
                 </form>
               </div>
+
+              {/* BLOQUE: PRÓXIMO TURNO */}
+              <div className="card p-4 border-0 shadow-sm mt-4 bg-white">
+                <div className="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                  <h3 className="fs-5 mb-0 text-primary font-weight-bold">
+                    <i className="bi bi-calendar-event me-2"></i> Próximo Turno
+                  </h3>
+                  <button
+                    className="btn btn-outline-warning text-dark btn-sm font-weight-bold"
+                    onClick={() => setShowCrearTurno(true)}
+                  >
+                    <i className="bi bi-plus-lg me-1"></i> + Agendar
+                  </button>
+                </div>
+
+                {proximoTurno ? (
+                  <div className="p-3 bg-light rounded border border-warning-subtle">
+                    <div className="d-flex justify-content-between align-items-start mb-2">
+                      <div>
+                        <span className="badge bg-warning text-dark font-weight-bold me-2">
+                          {proximoTurno.estado}
+                        </span>
+                        <span className="text-dark font-weight-bold fs-6">
+                          📅 {new Date(proximoTurno.fechaHora).toLocaleDateString()} a las {new Date(proximoTurno.fechaHora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs
+                        </span>
+                      </div>
+                      <span className="badge bg-light text-muted border">
+                        ⏱️ {proximoTurno.duracionMinutos || 30} min
+                      </span>
+                    </div>
+
+                    <div className="text-muted-custom small mb-1">
+                      <strong>Tratamiento:</strong> {proximoTurno.Tratamiento?.nombre || 'Consulta General'}
+                    </div>
+                    {proximoTurno.notas && (
+                      <div className="text-muted-custom small fst-italic">
+                        <strong>Notas:</strong> {proximoTurno.notas}
+                      </div>
+                    )}
+
+                    <div className="mt-3 border-top pt-2 text-end">
+                      <Link to="/turnos" className="btn btn-link btn-sm p-0 text-accent font-weight-bold text-decoration-none">
+                        Ver en Agenda de Turnos <i className="bi bi-arrow-right ms-1"></i>
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 bg-light rounded border border-dashed">
+                    <i className="bi bi-calendar-x text-muted fs-3 d-block mb-1"></i>
+                    <p className="text-muted-custom mb-2 font-weight-bold">Sin turnos próximos asociados</p>
+                    <button
+                      className="btn btn-accent text-white btn-sm px-3"
+                      onClick={() => setShowCrearTurno(true)}
+                    >
+                      <i className="bi bi-calendar-plus me-1"></i> Agendar Turno
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Listado de Evoluciones */}
             <div className="col-12 col-lg-7">
+              
+              {/* ODONTOGRAMA INTERACTIVO ARRIBA DEL HISTORIAL CLÍNICO */}
+              <Odontograma
+                pacienteId={paciente.id}
+                odontogramaInicial={paciente.odontograma}
+                onSave={(nuevoOdontograma) => {
+                  setPaciente(prev => ({
+                    ...prev,
+                    odontograma: nuevoOdontograma
+                  }));
+                }}
+              />
+
               <div className="card p-4 border-0 shadow-sm">
                 
                 {/* Cabecera de Evoluciones con Filtro por Tratamiento */}
@@ -811,7 +1059,21 @@ const FichaPaciente = () => {
                           <span className="text-muted-custom" style={{ fontSize: '0.85rem' }}>
                             Presupuesto del plan: <strong>${pto.toFixed(2)}</strong> | Cobrado: <strong className="text-success">${pg.toFixed(2)}</strong>
                           </span>
-                        </div>
+                          {/* MODAL: ADVERTENCIA DE FRECUENCIA DE FACTURACIÓN */}
+      <AdvertenciaFrecuenciaModal
+        show={showAdvertencia}
+        onHide={() => setShowAdvertencia(false)}
+        resultadoValidacion={validacionResult}
+        onConfirmParticular={async () => {
+          setShowAdvertencia(false);
+          await ejecutarGuardarSesion('particular');
+        }}
+        onConfirmObraSocial={async () => {
+          setShowAdvertencia(false);
+          await ejecutarGuardarSesion('obra_social');
+        }}
+      />
+    </div>
                         
                         <span className={`badge p-2 fs-6 border ${sld > 0 ? 'bg-danger-light border-danger text-danger' : sld < 0 ? 'bg-warning-light border-warning text-accent' : 'bg-success-light border-success text-success'}`}>
                           {sld > 0 ? (
@@ -905,6 +1167,19 @@ const FichaPaciente = () => {
         tratamientos={tratamientos}
         setTratamientos={setTratamientos}
         onSave={handleSesionGuardada}
+      />
+
+      {/* MODAL: CREAR TURNO RÁPIDO */}
+      <CrearTurnoModal
+        show={showCrearTurno}
+        onHide={() => setShowCrearTurno(false)}
+        paciente={paciente}
+        tratamientos={tratamientos}
+        onSave={async () => {
+          await cargarDatos();
+          setMensajeExito('Turno agendado y sincronizado con éxito.');
+          setTimeout(() => setMensajeExito(''), 4000);
+        }}
       />
     </div>
   );

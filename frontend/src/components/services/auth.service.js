@@ -13,8 +13,8 @@ const authService = {
     });
     
     if (response.data?.token) {
-      sessionStorage.setItem('token', response.data.token);
-      sessionStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
     }
     
     return response.data;
@@ -30,8 +30,8 @@ const authService = {
     });
     
     if (response.data?.token) {
-      sessionStorage.setItem('token', response.data.token);
-      sessionStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
     }
     
     return response.data;
@@ -47,8 +47,8 @@ const authService = {
     });
     
     if (response.data?.token) {
-      sessionStorage.setItem('token', response.data.token);
-      sessionStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
     }
     
     return response.data;
@@ -63,7 +63,7 @@ const authService = {
       const currentUser = this.getCurrentUser();
       if (currentUser) {
         currentUser.googleLinked = true;
-        sessionStorage.setItem('user', JSON.stringify(currentUser));
+        localStorage.setItem('user', JSON.stringify(currentUser));
       }
     }
     return response.data;
@@ -81,15 +81,15 @@ const authService = {
    * Cierra la sesión activa
    */
   logout() {
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
   },
 
   /**
    * Obtiene la información del usuario actual
    */
   getCurrentUser() {
-    const userStr = sessionStorage.getItem('user');
+    const userStr = localStorage.getItem('user');
     if (!userStr) return null;
     try {
       return JSON.parse(userStr);
@@ -102,7 +102,7 @@ const authService = {
    * Obtiene el token de la sesión activa
    */
   getToken() {
-    return sessionStorage.getItem('token');
+    return localStorage.getItem('token');
   },
 
   /**
