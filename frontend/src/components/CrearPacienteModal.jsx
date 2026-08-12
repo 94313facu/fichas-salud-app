@@ -1,216 +1,582 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import pacientesService from './services/pacientes.service';
 import obrasSocialesService from './services/obrasSociales.service';
 
+const LISTA_AFECCIONES = [
+  { id: 'problemasCardiacos', label: 'Problemas cardíacos' },
+  { id: 'presionAlta', label: 'Presión sanguínea alta' },
+  { id: 'presionBaja', label: 'Presión sanguínea baja' },
+  { id: 'fiebreReumatica', label: 'Fiebre reumática' },
+  { id: 'hepatitis', label: 'Hepatitis' },
+  { id: 'problemasGastricos', label: 'Problemas gástricos' },
+  { id: 'problemasRenales', label: 'Problemas renales' },
+  { id: 'hivSida', label: 'HIV / Sida' },
+  { id: 'epilepsia', label: 'Epilepsia' },
+  { id: 'artritisArtrosis', label: 'Artritis o Artrosis' },
+  { id: 'diabetes', label: 'Diabetes' },
+  { id: 'alteracionesNerviosas', label: 'Alteraciones nerviosas' },
+  { id: 'cefaleas', label: 'Cefaleas' }
+];
+
 const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onSave }) => {
-  const { register, handleSubmit, reset, formState: { errors } } = useForm();
-  const [obraSocialId, setObraSocialId] = useState('');
-  const [guardando, setGuardando] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(null);
+  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
+  
+  const [tabActiva, setTabActiva] = useState('datos'); // 'datos' | 'anamnesis'
+  const [cargando, setCargando] = useState(false);
+  const [errorApi, setErrorApi] = useState(null);
 
-  // Limpiar formulario al abrir
-  useEffect(() => {
-    if (show) {
-      reset({
-        nombre: '',
-        direccion: '',
-        telefono: '',
-        emailContact: '',
-        servicioEmergencia: '',
-        contactoEmergencia: '',
-        antecedentesEnfermedades: '',
-        antecedentesHereditarias: '',
-        antecedentesMedicacion: '',
-        antecedentesAlergias: ''
-      });
-      setObraSocialId('');
-      setErrorMsg(null);
+  // Estado local para agregar obra social dinámicamente
+  const [mostrarNuevaObra, setMostrarNuevaObra] = useState(false);
+  const [nuevaObraNombre, setNuevaObraNombre] = useState('');
+  const [creandoObra, setCreandoObra] = useState(false);
+  const [errorObra, setErrorObra] = useState('');
+
+  // Checkboxes de afecciones
+  const [afeccionesState, setAfeccionesState] = useState({});
+
+  const toggleAfeccion = (key) => {
+    setAfeccionesState(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const handleCrearObraSocial = async () => {
+    if (!nuevaObraNombre || nuevaObraNombre.trim() === '') {
+      setErrorObra('El nombre de la obra social es obligatorio.');
+      return;
     }
-  }, [show, reset]);
-
-  if (!show) return null;
-
-  // Alta dinámica de obra social dentro del modal de registro
-  const handleNuevaObraSocial = async () => {
-    const nombre = prompt('Ingresa el nombre de la nueva obra social (ej. Daspu):');
-    if (nombre && nombre.trim()) {
-      try {
-        setErrorMsg(null);
-        const nuevaObra = await obrasSocialesService.createObraSocial(nombre.trim());
-        setObrasSociales(prev => [...prev, nuevaObra]);
-        setObraSocialId(nuevaObra.id); // Pre-seleccionar
-      } catch (err) {
-        setErrorMsg(err.mensaje || 'Error al registrar la obra social.');
-      }
+    try {
+      setCreandoObra(true);
+      setErrorObra('');
+      const creada = await obrasSocialesService.createObraSocial(nuevaObraNombre.trim());
+      setObrasSociales([...obrasSociales, creada]);
+      setValue('obraSocialId', creada.id);
+      setNuevaObraNombre('');
+      setMostrarNuevaObra(false);
+    } catch (err) {
+      setErrorObra(err.mensaje || 'Error al crear la obra social.');
+    } finally {
+      setCreandoObra(false);
     }
   };
 
   const onSubmit = async (data) => {
     try {
-      setGuardando(true);
-      setErrorMsg(null);
+      setErrorApi(null);
+      setCargando(true);
 
-      const payload = {
+      const pacientePayload = {
         ...data,
-        obraSocialId: obraSocialId ? parseInt(obraSocialId) : null
+        afecciones: afeccionesState,
+        obraSocialId: data.obraSocialId ? parseInt(data.obraSocialId) : null
       };
 
-      const nuevoPaciente = await pacientesService.createPaciente(payload);
+      const nuevoPaciente = await pacientesService.createPaciente(pacientePayload);
+      
+      reset();
+      setAfeccionesState({});
+      setTabActiva('datos');
       onSave(nuevoPaciente);
       onHide();
     } catch (err) {
-      setErrorMsg(err.mensaje || 'Error al guardar el paciente.');
+      setErrorApi(err.mensaje || 'Ocurrió un error al registrar el paciente.');
     } finally {
-      setGuardando(false);
+      setCargando(false);
     }
   };
 
-  return (
-    <div className="modal show d-block" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 1050 }} tabIndex="-1" role="dialog">
-      <div className="modal-dialog modal-lg modal-dialog-scrollable" role="document">
-        <div className="modal-content border-0 rounded-3 shadow-lg">
-          <div className="modal-header bg-primary text-white py-3">
-            <h5 className="modal-title font-weight-bold">
-              <i className="bi bi-person-plus-fill me-2"></i> Registrar Nuevo Paciente
-            </h5>
-            <button type="button" className="btn-close btn-close-white" onClick={onHide} aria-label="Cerrar"></button>
-          </div>
-          
-          <div className="modal-body p-4 bg-light">
-            {errorMsg && (
-              <div className="alert alert-danger d-flex align-items-center mb-3" role="alert">
-                <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                <div>{errorMsg}</div>
-              </div>
-            )}
+  if (!show) return null;
 
-            <form onSubmit={handleSubmit(onSubmit)} id="form-crear-paciente">
-              
-              {/* Sección 1: Datos Personales */}
-              <div className="mb-4 bg-white p-3 rounded border">
-                <h6 className="border-bottom pb-2 mb-3 text-primary font-weight-bold">
-                  <i className="bi bi-person-badge-fill me-1"></i> Datos Personales y de Contacto
-                </h6>
+  return (
+    <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.6)', overflowY: 'auto' }}>
+      <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" style={{ maxHeight: '92vh' }}>
+        <div className="modal-content shadow-lg border-0" style={{ maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+          
+          {/* Encabezado de la Modal */}
+          <div className="modal-header bg-primary text-white py-3 flex-shrink-0">
+            <h5 className="modal-title font-weight-bold d-flex align-items-center fs-5">
+              <i className="bi bi-file-earmark-medical me-2"></i>
+              Historia Clínica - Registrar Nuevo Paciente
+            </h5>
+            <button
+              type="button"
+              className="btn-close btn-close-white"
+              aria-label="Close"
+              onClick={onHide}
+              disabled={cargando}
+            ></button>
+          </div>
+
+          <form onSubmit={handleSubmit(onSubmit)} noValidate style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
+            
+            {/* Navegación por Pestañas */}
+            <div className="bg-light border-bottom px-3 pt-2 flex-shrink-0">
+              <ul className="nav nav-tabs border-bottom-0">
+                <li className="nav-item">
+                  <button
+                    type="button"
+                    className={`nav-link ${tabActiva === 'datos' ? 'active font-weight-bold text-primary bg-white' : 'text-secondary'}`}
+                    onClick={() => setTabActiva('datos')}
+                  >
+                    <i className="bi bi-person-lines-fill me-1"></i> 1. Datos Personales y Cobertura
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button
+                    type="button"
+                    className={`nav-link ${tabActiva === 'anamnesis' ? 'active font-weight-bold text-primary bg-white' : 'text-secondary'}`}
+                    onClick={() => setTabActiva('anamnesis')}
+                  >
+                    <i className="bi bi-heart-pulse-fill me-1 text-danger"></i> 2. Cuestionario de Salud (Anamnesis)
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Cuerpo del Formulario con Scroll Interno Garantizado */}
+            <div className="modal-body p-4 flex-grow-1" style={{ overflowY: 'auto', maxHeight: 'calc(92vh - 160px)' }}>
+              {errorApi && (
+                <div className="alert alert-danger d-flex align-items-center mb-3" role="alert">
+                  <i className="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                  <div>{errorApi}</div>
+                </div>
+              )}
+
+              {/* PESTAÑA 1: DATOS PERSONALES Y COBERTURA */}
+              {tabActiva === 'datos' && (
                 <div className="row g-3">
-                  <div className="col-12 col-md-6">
-                    <label className="form-label font-weight-bold">Nombre completo</label>
+                  <div className="col-12 col-sm-4">
+                    <label className="form-label font-weight-bold">Historia Clínica Nº</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. HC-001"
+                      {...register('numeroFicha')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-8">
+                    <label className="form-label font-weight-bold">
+                      Apellido y Nombre <span className="text-danger">*</span>
+                    </label>
                     <input
                       type="text"
                       className={`form-control ${errors.nombre ? 'is-invalid' : ''}`}
-                      placeholder="Ej. Dr. Juan Pérez"
-                      {...register('nombre', { required: 'El nombre es obligatorio' })}
-                      disabled={guardando}
+                      placeholder="Ej. Saccone, María Facundo"
+                      {...register('nombre', { required: 'El apellido y nombre es obligatorio.' })}
+                      disabled={cargando}
                     />
                     {errors.nombre && <div className="invalid-feedback">{errors.nombre.message}</div>}
                   </div>
 
-                  <div className="col-12 col-md-6">
-                    <div className="d-flex justify-content-between align-items-center mb-1">
-                      <label htmlFor="modalObraSelect" className="form-label mb-0 font-weight-bold">Obra social</label>
+                  <div className="col-12 col-sm-6">
+                    <label className="form-label font-weight-bold">Teléfono de contacto</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. 351 555-1234"
+                      {...register('telefono')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-6">
+                    <label className="form-label font-weight-bold">Correo Electrónico</label>
+                    <input
+                      type="email"
+                      className="form-control"
+                      placeholder="paciente@correo.com"
+                      {...register('emailContact')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-6">
+                    <label className="form-label font-weight-bold">Domicilio</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. Av. Colón 1234, 3º B"
+                      {...register('direccion')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-3">
+                    <label className="form-label font-weight-bold">Localidad</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. Córdoba"
+                      {...register('localidad')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-3">
+                    <label className="form-label font-weight-bold">C.P.</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. 5000"
+                      {...register('codigoPostal')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-4">
+                    <label className="form-label font-weight-bold">Fecha de Nacimiento</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      {...register('fechaNacimiento')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-2">
+                    <label className="form-label font-weight-bold">Edad</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Ej. 34"
+                      {...register('edad')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-3">
+                    <label className="form-label font-weight-bold">Actividad / Ocupación</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. Docente"
+                      {...register('actividad')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-3">
+                    <label className="form-label font-weight-bold">Deriva (Referido por)</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. Dr. Gómez"
+                      {...register('deriva')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-6">
+                    <label className="form-label font-weight-bold">Médico Clínico</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Nombre del médico clínico de cabecera"
+                      {...register('medicoClinico')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-6">
+                    <label className="form-label font-weight-bold">Teléfono del Médico Clínico</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Teléfono del médico clínico"
+                      {...register('medicoClinicoTelefono')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  {/* COBERTURA Y EMERGENCIAS */}
+                  <div className="col-12 mt-4">
+                    <h6 className="font-weight-bold text-primary border-bottom pb-2">
+                      <i className="bi bi-shield-plus me-1"></i> Cobertura Médica y Servicios de Emergencia
+                    </h6>
+                  </div>
+
+                  <div className="col-12 col-sm-6">
+                    <label className="form-label font-weight-bold">Obra Social</label>
+                    <div className="d-flex gap-2">
+                      <select className="form-select" {...register('obraSocialId')} disabled={cargando}>
+                        <option value="">Particular / Sin Obra Social</option>
+                        {obrasSociales.map((os) => (
+                          <option key={os.id} value={os.id}>{os.nombre}</option>
+                        ))}
+                      </select>
                       <button
                         type="button"
-                        className="btn btn-link p-0 text-accent font-weight-bold text-decoration-none"
-                        style={{ height: 'auto', fontSize: '0.9rem' }}
-                        onClick={handleNuevaObraSocial}
-                        disabled={guardando}
+                        className="btn btn-outline-accent text-nowrap"
+                        onClick={() => setMostrarNuevaObra(!mostrarNuevaObra)}
                       >
-                        <i className="bi bi-plus-circle-fill me-1"></i> Nueva
+                        <i className="bi bi-plus-lg"></i>
                       </button>
                     </div>
-                    <select 
-                      id="modalObraSelect" 
-                      className="form-select"
-                      value={obraSocialId}
-                      onChange={(e) => setObraSocialId(e.target.value)}
-                      disabled={guardando}
-                    >
-                      <option value="">Particular</option>
-                      {obrasSociales.map((obra) => (
-                        <option key={obra.id} value={obra.id}>
-                          {obra.nombre}
-                        </option>
-                      ))}
-                    </select>
+
+                    {mostrarNuevaObra && (
+                      <div className="card p-2 mt-2 bg-light border">
+                        <div className="input-group input-group-sm">
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Nombre nueva obra social"
+                            value={nuevaObraNombre}
+                            onChange={(e) => setNuevaObraNombre(e.target.value)}
+                          />
+                          <button
+                            className="btn btn-accent text-white"
+                            type="button"
+                            onClick={handleCrearObraSocial}
+                            disabled={creandoObra}
+                          >
+                            Guardar
+                          </button>
+                        </div>
+                        {errorObra && <small className="text-danger mt-1">{errorObra}</small>}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="col-12 col-md-4">
-                    <label className="form-label font-weight-bold">Teléfono de contacto</label>
-                    <input type="text" className="form-control" {...register('telefono')} placeholder="Ej. 3513456789" disabled={guardando} />
+                  <div className="col-12 col-sm-3">
+                    <label className="form-label font-weight-bold">Nº de Afiliado</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. 12345678/01"
+                      {...register('numeroAfiliado')}
+                      disabled={cargando}
+                    />
                   </div>
 
-                  <div className="col-12 col-md-4">
-                    <label className="form-label font-weight-bold">Correo electrónico</label>
-                    <input type="email" className="form-control" {...register('emailContact')} placeholder="ejemplo@correo.com" disabled={guardando} />
+                  <div className="col-12 col-sm-3">
+                    <label className="form-label font-weight-bold">Plan</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. 210 / Premium"
+                      {...register('planObraSocial')}
+                      disabled={cargando}
+                    />
                   </div>
 
-                  <div className="col-12 col-md-4">
-                    <label className="form-label font-weight-bold">Dirección</label>
-                    <input type="text" className="form-control" {...register('direccion')} placeholder="Ej. Av. Colón 123" disabled={guardando} />
+                  <div className="col-12 col-sm-6">
+                    <label className="form-label font-weight-bold">Servicio de Emergencias</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. ECCO / EMI / UMED"
+                      {...register('servicioEmergencia')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12 col-sm-6">
+                    <label className="form-label font-weight-bold text-danger">
+                      <i className="bi bi-telephone-fill me-1"></i> Contacto de Emergencia (Familiar/Tutor)
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control border-danger-subtle"
+                      placeholder="Nombre y Teléfono de familiar o tutor"
+                      {...register('contactoEmergencia')}
+                      disabled={cargando}
+                    />
+                  </div>
+
+                  <div className="col-12">
+                    <label className="form-label font-weight-bold">Aparatología</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. Ortodoncia fija, prótesis, marcapasos..."
+                      {...register('aparatologia')}
+                      disabled={cargando}
+                    />
                   </div>
                 </div>
-              </div>
-
-              {/* Sección 2: Emergencias */}
-              <div className="mb-4 bg-white p-3 rounded border">
-                <h6 className="border-bottom pb-2 mb-3 text-primary font-weight-bold">
-                  <i className="bi bi-shield-fill-plus me-1"></i> Información de Emergencias
-                </h6>
-                <div className="row g-3">
-                  <div className="col-12 col-md-6">
-                    <label className="form-label font-weight-bold">Servicio de emergencias</label>
-                    <input type="text" className="form-control" {...register('servicioEmergencia')} placeholder="Ej. 107, ECCO, URG" disabled={guardando} />
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <label className="form-label font-weight-bold">Contacto de emergencia (Nombre/Teléfono)</label>
-                    <input type="text" className="form-control" {...register('contactoEmergencia')} placeholder="Ej. Juan (Padre) - 3519876543" disabled={guardando} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Sección 3: Antecedentes Clínicos */}
-              <div className="bg-white p-3 rounded border">
-                <h6 className="border-bottom pb-2 mb-3 text-primary font-weight-bold">
-                  <i className="bi bi-file-earmark-medical-fill me-1"></i> Antecedentes Clínicos
-                </h6>
-                <div className="row g-3">
-                  <div className="col-12 col-md-6">
-                    <label className="form-label font-weight-bold">Enfermedades preexistentes</label>
-                    <textarea className="form-control" rows="2" {...register('antecedentesEnfermedades')} placeholder="Ej. Hipertensión, Diabetes..." disabled={guardando}></textarea>
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <label className="form-label font-weight-bold">Antecedentes hereditarios</label>
-                    <textarea className="form-control" rows="2" {...register('antecedentesHereditarias')} placeholder="Ej. Madre hipertensa, padre diabético..." disabled={guardando}></textarea>
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <label className="form-label font-weight-bold">Medicación actual</label>
-                    <textarea className="form-control" rows="2" {...register('antecedentesMedicacion')} placeholder="Ej. Enalapril 10mg diario..." disabled={guardando}></textarea>
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <label className="form-label font-weight-bold">Alergias conocidas</label>
-                    <textarea className="form-control" rows="2" {...register('antecedentesAlergias')} placeholder="Ej. Penicilina..." disabled={guardando}></textarea>
-                  </div>
-                </div>
-              </div>
-
-            </form>
-          </div>
-          
-          <div className="modal-footer bg-light border-top">
-            <button type="button" className="btn btn-secondary px-4" onClick={onHide} style={{ height: '44px' }} disabled={guardando}>
-              Cancelar
-            </button>
-            <button type="submit" form="form-crear-paciente" className="btn btn-accent text-white px-4" style={{ height: '44px' }} disabled={guardando}>
-              {guardando ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                  Registrando...
-                </>
-              ) : (
-                'Registrar Paciente'
               )}
-            </button>
-          </div>
+
+              {/* PESTAÑA 2: CUESTIONARIO CLÍNICO (ANAMNESIS) */}
+              {tabActiva === 'anamnesis' && (
+                <div>
+                  <div className="alert alert-info py-2 mb-3" style={{ fontSize: '0.88rem' }}>
+                    <i className="bi bi-info-circle-fill me-2"></i>
+                    Indique si el paciente padece o ha padecido alguna de las siguientes afecciones (Marque con un chequeo):
+                  </div>
+
+                  {/* Checkboxes de Afecciones en 2 Columnas */}
+                  <div className="row g-2 p-3 bg-light rounded border mb-4">
+                    {LISTA_AFECCIONES.map((item) => (
+                      <div key={item.id} className="col-12 col-sm-6">
+                        <div className="form-check p-2 rounded bg-white border">
+                          <input
+                            type="checkbox"
+                            className="form-check-input ms-0 me-2 cursor-pointer"
+                            id={`afec_${item.id}`}
+                            checked={!!afeccionesState[item.id]}
+                            onChange={() => toggleAfeccion(item.id)}
+                            disabled={cargando}
+                          />
+                          <label className="form-check-label font-weight-bold cursor-pointer text-dark" htmlFor={`afec_${item.id}`}>
+                            {item.label}
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Cuestionario Abierto */}
+                  <h6 className="font-weight-bold text-primary border-bottom pb-2 mb-3">
+                    <i className="bi bi-clipboard-pulse me-1"></i> Cuestionario Detallado de Salud
+                  </h6>
+
+                  <div className="row g-3">
+                    <div className="col-12">
+                      <label className="form-label font-weight-bold">
+                        ¿Es alérgico/a a alguna droga o medicamento? ¿Cuál/es?
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Especifique medicamentos o 'No'"
+                        {...register('alergiasMedicamentos')}
+                        disabled={cargando}
+                      />
+                    </div>
+
+                    <div className="col-12 col-sm-6">
+                      <label className="form-label font-weight-bold">¿Es propenso/a a las hemorragias?</label>
+                      <div className="d-flex gap-4">
+                        <div className="form-check">
+                          <input type="radio" value="true" className="form-check-input" id="hem_si" {...register('propensoHemorragias')} />
+                          <label className="form-check-label" htmlFor="hem_si">Sí</label>
+                        </div>
+                        <div className="form-check">
+                          <input type="radio" value="false" className="form-check-input" id="hem_no" defaultChecked {...register('propensoHemorragias')} />
+                          <label className="form-check-label" htmlFor="hem_no">No</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-12 col-sm-6">
+                      <label className="form-label font-weight-bold">¿Fuma?</label>
+                      <div className="d-flex gap-4">
+                        <div className="form-check">
+                          <input type="radio" value="true" className="form-check-input" id="fuma_si" {...register('fuma')} />
+                          <label className="form-check-label" htmlFor="fuma_si">Sí</label>
+                        </div>
+                        <div className="form-check">
+                          <input type="radio" value="false" className="form-check-input" id="fuma_no" defaultChecked {...register('fuma')} />
+                          <label className="form-check-label" htmlFor="fuma_no">No</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-12">
+                      <label className="form-label font-weight-bold">¿Toma algún medicamento actualmente? ¿Cuál/es?</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Especifique medicación habitual o 'No'"
+                        {...register('medicamentoHabitual')}
+                        disabled={cargando}
+                      />
+                    </div>
+
+                    <div className="col-12">
+                      <label className="form-label font-weight-bold">
+                        ¿Tiene o ha tenido alguna otra enfermedad o afección no mencionada? ¿Cuál/es?
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Especifique u observaciones"
+                        {...register('otrasEnfermedades')}
+                        disabled={cargando}
+                      />
+                    </div>
+
+                    <div className="col-12">
+                      <label className="form-label font-weight-bold">
+                        ¿Tiene algún antecedente hereditario de importancia? ¿Cuál/es?
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Ej. Diabetes familiar, problemas cardíacos..."
+                        {...register('antecedentesHereditarios')}
+                        disabled={cargando}
+                      />
+                    </div>
+
+                    <div className="col-12 col-sm-6">
+                      <label className="form-label font-weight-bold">Si es mujer, ¿está embarazada?</label>
+                      <div className="d-flex gap-4">
+                        <div className="form-check">
+                          <input type="radio" value="true" className="form-check-input" id="emb_si" {...register('embarazada')} />
+                          <label className="form-check-label" htmlFor="emb_si">Sí</label>
+                        </div>
+                        <div className="form-check">
+                          <input type="radio" value="false" className="form-check-input" id="emb_no" defaultChecked {...register('embarazada')} />
+                          <label className="form-check-label" htmlFor="emb_no">No / No aplica</label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pie de la Modal Fijado Abajo */}
+            <div className="modal-footer bg-light d-flex justify-content-between flex-shrink-0 py-3">
+              {tabActiva === 'datos' ? (
+                <button
+                  type="button"
+                  className="btn btn-outline-primary font-weight-bold"
+                  onClick={() => setTabActiva('anamnesis')}
+                >
+                  Ir al Cuestionario de Salud <i className="bi bi-arrow-right ms-1"></i>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary font-weight-bold"
+                  onClick={() => setTabActiva('datos')}
+                >
+                  <i className="bi bi-arrow-left me-1"></i> Volver a Datos Personales
+                </button>
+              )}
+
+              <div className="d-flex gap-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={onHide}
+                  disabled={cargando}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-accent text-white font-weight-bold px-4"
+                  disabled={cargando}
+                >
+                  {cargando ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      Guardando...
+                    </>
+                  ) : (
+                    'Guardar Ficha Médica'
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { Paciente, Sesion, ObraSocial, Tratamiento } = require('../models');
+const { Paciente, Sesion, ObraSocial, Tratamiento, Turno } = require('../models');
 const { uploadFile } = require('../config/cloudinary');
 const authMiddleware = require('../middlewares/authMiddleware');
 
@@ -41,12 +41,32 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const {
+      numeroFicha,
       nombre,
-      direccion,
       telefono,
+      direccion,
+      localidad,
+      codigoPostal,
       emailContact,
+      fechaNacimiento,
+      edad,
+      actividad,
+      deriva,
+      medicoClinico,
+      medicoClinicoTelefono,
+      numeroAfiliado,
+      planObraSocial,
       servicioEmergencia,
       contactoEmergencia,
+      aparatologia,
+      afecciones,
+      alergiasMedicamentos,
+      propensoHemorragias,
+      medicamentoHabitual,
+      fuma,
+      otrasEnfermedades,
+      antecedentesHereditarios,
+      embarazada,
       antecedentesEnfermedades,
       antecedentesHereditarias,
       antecedentesMedicacion,
@@ -59,12 +79,32 @@ router.post('/', async (req, res) => {
     }
 
     const nuevoPaciente = await Paciente.create({
+      numeroFicha: numeroFicha ? numeroFicha.trim() : null,
       nombre: nombre.trim(),
-      direccion: direccion ? direccion.trim() : null,
       telefono: telefono ? telefono.trim() : null,
+      direccion: direccion ? direccion.trim() : null,
+      localidad: localidad ? localidad.trim() : null,
+      codigoPostal: codigoPostal ? codigoPostal.trim() : null,
       emailContact: emailContact ? emailContact.trim() : null,
+      fechaNacimiento: fechaNacimiento || null,
+      edad: edad ? parseInt(edad) : null,
+      actividad: actividad ? actividad.trim() : null,
+      deriva: deriva ? deriva.trim() : null,
+      medicoClinico: medicoClinico ? medicoClinico.trim() : null,
+      medicoClinicoTelefono: medicoClinicoTelefono ? medicoClinicoTelefono.trim() : null,
+      numeroAfiliado: numeroAfiliado ? numeroAfiliado.trim() : null,
+      planObraSocial: planObraSocial ? planObraSocial.trim() : null,
       servicioEmergencia: servicioEmergencia ? servicioEmergencia.trim() : null,
       contactoEmergencia: contactoEmergencia ? contactoEmergencia.trim() : null,
+      aparatologia: aparatologia ? aparatologia.trim() : null,
+      afecciones: afecciones || {},
+      alergiasMedicamentos: alergiasMedicamentos ? alergiasMedicamentos.trim() : null,
+      propensoHemorragias: !!propensoHemorragias,
+      medicamentoHabitual: medicamentoHabitual ? medicamentoHabitual.trim() : null,
+      fuma: !!fuma,
+      otrasEnfermedades: otrasEnfermedades ? otrasEnfermedades.trim() : null,
+      antecedentesHereditarios: antecedentesHereditarios ? antecedentesHereditarios.trim() : null,
+      embarazada: !!embarazada,
       antecedentesEnfermedades: antecedentesEnfermedades ? antecedentesEnfermedades.trim() : null,
       antecedentesHereditarias: antecedentesHereditarias ? antecedentesHereditarias.trim() : null,
       antecedentesMedicacion: antecedentesMedicacion ? antecedentesMedicacion.trim() : null,
@@ -174,12 +214,32 @@ router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const {
+      numeroFicha,
       nombre,
-      direccion,
       telefono,
+      direccion,
+      localidad,
+      codigoPostal,
       emailContact,
+      fechaNacimiento,
+      edad,
+      actividad,
+      deriva,
+      medicoClinico,
+      medicoClinicoTelefono,
+      numeroAfiliado,
+      planObraSocial,
       servicioEmergencia,
       contactoEmergencia,
+      aparatologia,
+      afecciones,
+      alergiasMedicamentos,
+      propensoHemorragias,
+      medicamentoHabitual,
+      fuma,
+      otrasEnfermedades,
+      antecedentesHereditarios,
+      embarazada,
       antecedentesEnfermedades,
       antecedentesHereditarias,
       antecedentesMedicacion,
@@ -201,17 +261,37 @@ router.put('/:id', async (req, res) => {
 
     // Actualizar datos
     await paciente.update({
+      numeroFicha: numeroFicha !== undefined ? (numeroFicha ? numeroFicha.trim() : null) : paciente.numeroFicha,
       nombre: nombre.trim(),
-      direccion: direccion ? direccion.trim() : null,
-      telefono: telefono ? telefono.trim() : null,
-      emailContact: emailContact ? emailContact.trim() : null,
-      servicioEmergencia: servicioEmergencia ? servicioEmergencia.trim() : null,
-      contactoEmergencia: contactoEmergencia ? contactoEmergencia.trim() : null,
-      antecedentesEnfermedades: antecedentesEnfermedades ? antecedentesEnfermedades.trim() : null,
-      antecedentesHereditarias: antecedentesHereditarias ? antecedentesHereditarias.trim() : null,
-      antecedentesMedicacion: antecedentesMedicacion ? antecedentesMedicacion.trim() : null,
-      antecedentesAlergias: antecedentesAlergias ? antecedentesAlergias.trim() : null,
-      obraSocialId: obraSocialId || null
+      telefono: telefono !== undefined ? (telefono ? telefono.trim() : null) : paciente.telefono,
+      direccion: direccion !== undefined ? (direccion ? direccion.trim() : null) : paciente.direccion,
+      localidad: localidad !== undefined ? (localidad ? localidad.trim() : null) : paciente.localidad,
+      codigoPostal: codigoPostal !== undefined ? (codigoPostal ? codigoPostal.trim() : null) : paciente.codigoPostal,
+      emailContact: emailContact !== undefined ? (emailContact ? emailContact.trim() : null) : paciente.emailContact,
+      fechaNacimiento: fechaNacimiento !== undefined ? (fechaNacimiento || null) : paciente.fechaNacimiento,
+      edad: edad !== undefined ? (edad ? parseInt(edad) : null) : paciente.edad,
+      actividad: actividad !== undefined ? (actividad ? actividad.trim() : null) : paciente.actividad,
+      deriva: deriva !== undefined ? (deriva ? deriva.trim() : null) : paciente.deriva,
+      medicoClinico: medicoClinico !== undefined ? (medicoClinico ? medicoClinico.trim() : null) : paciente.medicoClinico,
+      medicoClinicoTelefono: medicoClinicoTelefono !== undefined ? (medicoClinicoTelefono ? medicoClinicoTelefono.trim() : null) : paciente.medicoClinicoTelefono,
+      numeroAfiliado: numeroAfiliado !== undefined ? (numeroAfiliado ? numeroAfiliado.trim() : null) : paciente.numeroAfiliado,
+      planObraSocial: planObraSocial !== undefined ? (planObraSocial ? planObraSocial.trim() : null) : paciente.planObraSocial,
+      servicioEmergencia: servicioEmergencia !== undefined ? (servicioEmergencia ? servicioEmergencia.trim() : null) : paciente.servicioEmergencia,
+      contactoEmergencia: contactoEmergencia !== undefined ? (contactoEmergencia ? contactoEmergencia.trim() : null) : paciente.contactoEmergencia,
+      aparatologia: aparatologia !== undefined ? (aparatologia ? aparatologia.trim() : null) : paciente.aparatologia,
+      afecciones: afecciones !== undefined ? (afecciones || {}) : paciente.afecciones,
+      alergiasMedicamentos: alergiasMedicamentos !== undefined ? (alergiasMedicamentos ? alergiasMedicamentos.trim() : null) : paciente.alergiasMedicamentos,
+      propensoHemorragias: propensoHemorragias !== undefined ? !!propensoHemorragias : paciente.propensoHemorragias,
+      medicamentoHabitual: medicamentoHabitual !== undefined ? (medicamentoHabitual ? medicamentoHabitual.trim() : null) : paciente.medicamentoHabitual,
+      fuma: fuma !== undefined ? !!fuma : paciente.fuma,
+      otrasEnfermedades: otrasEnfermedades !== undefined ? (otrasEnfermedades ? otrasEnfermedades.trim() : null) : paciente.otrasEnfermedades,
+      antecedentesHereditarios: antecedentesHereditarios !== undefined ? (antecedentesHereditarios ? antecedentesHereditarios.trim() : null) : paciente.antecedentesHereditarios,
+      embarazada: embarazada !== undefined ? !!embarazada : paciente.embarazada,
+      antecedentesEnfermedades: antecedentesEnfermedades !== undefined ? (antecedentesEnfermedades ? antecedentesEnfermedades.trim() : null) : paciente.antecedentesEnfermedades,
+      antecedentesHereditarias: antecedentesHereditarias !== undefined ? (antecedentesHereditarias ? antecedentesHereditarias.trim() : null) : paciente.antecedentesHereditarias,
+      antecedentesMedicacion: antecedentesMedicacion !== undefined ? (antecedentesMedicacion ? antecedentesMedicacion.trim() : null) : paciente.antecedentesMedicacion,
+      antecedentesAlergias: antecedentesAlergias !== undefined ? (antecedentesAlergias ? antecedentesAlergias.trim() : null) : paciente.antecedentesAlergias,
+      obraSocialId: obraSocialId !== undefined ? (obraSocialId || null) : paciente.obraSocialId
     });
 
     // Devolver el paciente actualizado incluyendo obra social
@@ -317,7 +397,7 @@ router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
 
     if (req.file) {
       try {
-        const uploadResult = await uploadFile(req.file, paciente.id);
+        const uploadResult = await uploadFile(req.file, paciente.id, req.user.id);
         archivoUrl = uploadResult.url;
         archivoTipo = uploadResult.tipo;
       } catch (uploadError) {
@@ -389,7 +469,7 @@ router.put('/:pacienteId/sesiones/:id', upload.single('archivo'), async (req, re
 
     if (req.file) {
       try {
-        const uploadResult = await uploadFile(req.file, paciente.id);
+        const uploadResult = await uploadFile(req.file, paciente.id, req.user.id);
         archivoUrl = uploadResult.url;
         archivoTipo = uploadResult.tipo;
       } catch (uploadError) {
@@ -439,7 +519,8 @@ router.post('/importar', upload.single('archivo'), async (req, res) => {
 
     const profesionalId = req.user.id;
 
-    // 1. Eliminar pacientes existentes del profesional (con sus tratamientos y sesiones en cascada)
+    // 1. Eliminar turnos y pacientes existentes del profesional
+    await Turno.destroy({ where: { profesionalId } });
     const pacientesExistentes = await Paciente.findAll({ where: { profesionalId } });
     for (const p of pacientesExistentes) {
       await p.destroy();
@@ -467,12 +548,32 @@ router.post('/importar', upload.single('archivo'), async (req, res) => {
 
       // b) Crear Paciente
       const nuevoPaciente = await Paciente.create({
+        numeroFicha: pData.numeroFicha || null,
         nombre: pData.nombre.trim(),
-        direccion: pData.direccion || null,
         telefono: pData.telefono || null,
+        direccion: pData.direccion || null,
+        localidad: pData.localidad || null,
+        codigoPostal: pData.codigoPostal || null,
         emailContact: pData.emailContact || null,
+        fechaNacimiento: pData.fechaNacimiento || null,
+        edad: pData.edad || null,
+        actividad: pData.actividad || null,
+        deriva: pData.deriva || null,
+        medicoClinico: pData.medicoClinico || null,
+        medicoClinicoTelefono: pData.medicoClinicoTelefono || null,
+        numeroAfiliado: pData.numeroAfiliado || null,
+        planObraSocial: pData.planObraSocial || null,
         servicioEmergencia: pData.servicioEmergencia || null,
         contactoEmergencia: pData.contactoEmergencia || null,
+        aparatologia: pData.aparatologia || null,
+        afecciones: pData.afecciones || {},
+        alergiasMedicamentos: pData.alergiasMedicamentos || null,
+        propensoHemorragias: !!pData.propensoHemorragias,
+        medicamentoHabitual: pData.medicamentoHabitual || null,
+        fuma: !!pData.fuma,
+        otrasEnfermedades: pData.otrasEnfermedades || null,
+        antecedentesHereditarios: pData.antecedentesHereditarios || null,
+        embarazada: !!pData.embarazada,
         antecedentesEnfermedades: pData.antecedentesEnfermedades || null,
         antecedentesHereditarias: pData.antecedentesHereditarias || null,
         antecedentesMedicacion: pData.antecedentesMedicacion || null,

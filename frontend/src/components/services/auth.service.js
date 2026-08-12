@@ -21,7 +21,7 @@ const authService = {
   },
 
   /**
-   * Inicia sesión del profesional
+   * Inicia sesión del profesional tradicional
    */
   async login(username, password) {
     const response = await api.post('/api/auth/login', {
@@ -34,6 +34,46 @@ const authService = {
       sessionStorage.setItem('user', JSON.stringify(response.data.user));
     }
     
+    return response.data;
+  },
+
+  /**
+   * Inicia sesión o se registra con Google OAuth 2.0
+   */
+  async googleLogin(credential, code) {
+    const response = await api.post('/api/auth/google', {
+      credential,
+      code
+    });
+    
+    if (response.data?.token) {
+      sessionStorage.setItem('token', response.data.token);
+      sessionStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+    
+    return response.data;
+  },
+
+  /**
+   * Vincula permisos de Google Calendar y Drive a la cuenta del usuario actual
+   */
+  async linkGoogle(code) {
+    const response = await api.post('/api/auth/google/link', { code });
+    if (response.data?.googleLinked) {
+      const currentUser = this.getCurrentUser();
+      if (currentUser) {
+        currentUser.googleLinked = true;
+        sessionStorage.setItem('user', JSON.stringify(currentUser));
+      }
+    }
+    return response.data;
+  },
+
+  /**
+   * Fuerza la subida inmediata de un respaldo JSON al Google Drive del profesional
+   */
+  async syncDriveNow() {
+    const response = await api.post('/api/auth/google/sync-drive');
     return response.data;
   },
 

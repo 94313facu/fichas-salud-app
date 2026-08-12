@@ -7,10 +7,14 @@ import CrearPacienteModal from './CrearPacienteModal';
 const Pacientes = () => {
   const [pacientes, setPacientes] = useState([]);
   const [obrasSociales, setObrasSociales] = useState([]);
-  const [busqueda, setBusqueda] = useState('');
   const [cargando, setCargando] = useState(true);
   const [showCrearModal, setShowCrearModal] = useState(false);
   
+  // Filtros y Búsqueda Avanzada
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroObraSocial, setFiltroObraSocial] = useState('TODAS');
+  const [ordenamiento, setOrdenamiento] = useState('NOMBRE_ASC');
+
   // Mensajes de éxito y error
   const [mensajeExito, setMensajeExito] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -40,7 +44,6 @@ const Pacientes = () => {
   const handlePacienteRegistrado = async (nuevoPaciente) => {
     setMensajeExito(`Paciente "${nuevoPaciente.nombre}" registrado correctamente.`);
     
-    // Recargar lista
     try {
       const pacientesData = await pacientesService.getPacientes();
       setPacientes(pacientesData);
@@ -51,10 +54,52 @@ const Pacientes = () => {
     setTimeout(() => setMensajeExito(''), 4000);
   };
 
-  // Filtrado de pacientes
-  const pacientesFiltrados = pacientes.filter(paciente =>
-    paciente.nombre.toLowerCase().includes(busqueda.toLowerCase())
-  );
+  // Filtrado Multicriterio y Ordenamiento
+  const pacientesFiltrados = pacientes
+    .filter(paciente => {
+      // 1. Filtro por Búsqueda de Texto (Nombre, Teléfono, Email, Dirección, Contacto Emergencia)
+      const q = busqueda.toLowerCase().trim();
+      const coincideTexto = !q || (
+        (paciente.nombre && paciente.nombre.toLowerCase().includes(q)) ||
+        (paciente.telefono && paciente.telefono.toLowerCase().includes(q)) ||
+        (paciente.emailContact && paciente.emailContact.toLowerCase().includes(q)) ||
+        (paciente.direccion && paciente.direccion.toLowerCase().includes(q)) ||
+        (paciente.servicioEmergencia && paciente.servicioEmergencia.toLowerCase().includes(q)) ||
+        (paciente.contactoEmergencia && paciente.contactoEmergencia.toLowerCase().includes(q))
+      );
+
+      // 2. Filtro por Obra Social
+      let coincideObra = true;
+      if (filtroObraSocial === 'PARTICULAR') {
+        coincideObra = !paciente.obraSocialId;
+      } else if (filtroObraSocial !== 'TODAS') {
+        coincideObra = paciente.obraSocialId === parseInt(filtroObraSocial);
+      }
+
+      return coincideTexto && coincideObra;
+    })
+    .sort((a, b) => {
+      // 3. Ordenamiento
+      if (ordenamiento === 'NOMBRE_ASC') {
+        return a.nombre.localeCompare(b.nombre);
+      }
+      if (ordenamiento === 'NOMBRE_DESC') {
+        return b.nombre.localeCompare(a.nombre);
+      }
+      if (ordenamiento === 'RECIENTES') {
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      }
+      if (ordenamiento === 'ANTIGUOS') {
+        return new Date(a.createdAt) - new Date(b.createdAt);
+      }
+      return 0;
+    });
+
+  const limpiarFiltros = () => {
+    setBusqueda('');
+    setFiltroObraSocial('TODAS');
+    setOrdenamiento('NOMBRE_ASC');
+  };
 
   return (
     <div className="container py-4">
@@ -92,29 +137,93 @@ const Pacientes = () => {
         </div>
       )}
 
-      {/* Buscador y Listado en ancho completo */}
+      {/* Tarjeta con Búsqueda Avanzada y Listado */}
       <div className="row">
         <div className="col-12">
           <div className="card p-4 shadow-sm border-0">
-            {/* Buscador Simple */}
-            <div className="mb-4">
-              <label htmlFor="buscador" className="form-label font-weight-bold">
-                Buscar paciente por nombre
-              </label>
-              <div className="input-group">
-                <span className="input-group-text bg-white border-end-0">
-                  <i className="bi bi-search text-muted"></i>
-                </span>
-                <input
-                  type="text"
-                  id="buscador"
-                  className="form-control border-start-0"
-                  placeholder="Escribe el nombre del paciente aquí..."
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  disabled={cargando}
-                />
+            
+            {/* PANEL DE BÚSQUEDA Y FILTROS AVANZADOS */}
+            <div className="row g-3 mb-4 align-items-end">
+              {/* Buscador de Texto Multicriterio */}
+              <div className="col-12 col-md-5">
+                <label htmlFor="buscador" className="form-label font-weight-bold">
+                  Búsqueda rápida por nombre, teléfono o email
+                </label>
+                <div className="input-group">
+                  <span className="input-group-text bg-white border-end-0">
+                    <i className="bi bi-search text-muted"></i>
+                  </span>
+                  <input
+                    type="text"
+                    id="buscador"
+                    className="form-control border-start-0"
+                    placeholder="Ej. Juan, 351555..., correo@mail.com"
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    disabled={cargando}
+                  />
+                  {busqueda && (
+                    <button className="btn btn-outline-secondary border-start-0" onClick={() => setBusqueda('')}>
+                      <i className="bi bi-x"></i>
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {/* Filtro por Obra Social */}
+              <div className="col-12 col-sm-6 col-md-4">
+                <label htmlFor="filtroObra" className="form-label font-weight-bold">
+                  Filtrar por Obra Social
+                </label>
+                <select
+                  id="filtroObra"
+                  className="form-select"
+                  value={filtroObraSocial}
+                  onChange={(e) => setFiltroObraSocial(e.target.value)}
+                  disabled={cargando}
+                >
+                  <option value="TODAS">Todas las obras sociales</option>
+                  <option value="PARTICULAR">Particular (Sin obra social)</option>
+                  {obrasSociales.map(os => (
+                    <option key={os.id} value={os.id}>{os.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Ordenamiento */}
+              <div className="col-12 col-sm-6 col-md-3">
+                <label htmlFor="orden" className="form-label font-weight-bold">
+                  Ordenar lista
+                </label>
+                <select
+                  id="orden"
+                  className="form-select"
+                  value={ordenamiento}
+                  onChange={(e) => setOrdenamiento(e.target.value)}
+                  disabled={cargando}
+                >
+                  <option value="NOMBRE_ASC">Nombre (A-Z)</option>
+                  <option value="NOMBRE_DESC">Nombre (Z-A)</option>
+                  <option value="RECIENTES">Más recientes primero</option>
+                  <option value="ANTIGUOS">Más antiguos primero</option>
+                </select>
+              </div>
+            </div>
+
+            {/* BARRA DE ESTADO DE FILTROS Y CONTADOR */}
+            <div className="d-flex flex-wrap justify-content-between align-items-center bg-light p-2 px-3 rounded border mb-3 text-muted-custom" style={{ fontSize: '0.9rem' }}>
+              <div>
+                <i className="bi bi-people-fill me-2 text-primary"></i>
+                Mostrando <strong>{pacientesFiltrados.length}</strong> de <strong>{pacientes.length}</strong> paciente(s) registrado(s).
+              </div>
+              {(busqueda || filtroObraSocial !== 'TODAS' || ordenamiento !== 'NOMBRE_ASC') && (
+                <button
+                  className="btn btn-link btn-sm p-0 text-decoration-none text-accent font-weight-bold mt-1 mt-sm-0"
+                  onClick={limpiarFiltros}
+                >
+                  <i className="bi bi-arrow-counterclockwise me-1"></i> Limpiar filtros
+                </button>
+              )}
             </div>
 
             {/* Listado de Pacientes */}
@@ -139,10 +248,18 @@ const Pacientes = () => {
                       </div>
                       <div>
                         <span className="font-weight-bold fs-5 text-dark d-block">{paciente.nombre}</span>
-                        <span className="text-muted-custom" style={{ fontSize: '0.85rem' }}>
-                          <i className="bi bi-card-checklist me-1"></i>
-                          Obra Social: {paciente.ObraSocial?.nombre || 'Particular'}
-                        </span>
+                        <div className="d-flex flex-wrap gap-2 align-items-center text-muted-custom mt-1" style={{ fontSize: '0.85rem' }}>
+                          <span className="badge bg-light text-primary border">
+                            <i className="bi bi-shield-check me-1"></i>
+                            {paciente.ObraSocial?.nombre || 'Particular'}
+                          </span>
+                          {paciente.telefono && (
+                            <span><i className="bi bi-telephone me-1"></i>{paciente.telefono}</span>
+                          )}
+                          {paciente.emailContact && (
+                            <span><i className="bi bi-envelope me-1"></i>{paciente.emailContact}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <i className="bi bi-chevron-right text-muted fs-5"></i>
@@ -153,7 +270,9 @@ const Pacientes = () => {
               <div className="text-center py-5 bg-light rounded">
                 <i className="bi bi-person-x fs-1 text-muted"></i>
                 <p className="mt-2 text-muted-custom mb-0">
-                  {busqueda ? 'No se encontraron pacientes que coincidan.' : 'Aún no registras ningún paciente.'}
+                  {busqueda || filtroObraSocial !== 'TODAS'
+                    ? 'No se encontraron pacientes que coincidan con los filtros aplicados.'
+                    : 'Aún no registras ningún paciente.'}
                 </p>
               </div>
             )}

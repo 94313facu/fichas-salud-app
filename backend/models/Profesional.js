@@ -29,7 +29,16 @@ const Profesional = sequelize.define('Profesional', {
   },
   passwordHash: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true // Permitir nulo para cuentas registradas vía Google OAuth
+  },
+  googleId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true
+  },
+  googleRefreshToken: {
+    type: DataTypes.TEXT,
+    allowNull: true
   },
   role: {
     type: DataTypes.STRING,
@@ -38,7 +47,7 @@ const Profesional = sequelize.define('Profesional', {
   }
 }, {
   tableName: 'Profesionales',
-  timestamps: true // Habilita createdAt y updatedAt
+  timestamps: true
 });
 
 module.exports = Profesional;

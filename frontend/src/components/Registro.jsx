@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
+import { useGoogleLogin } from '@react-oauth/google';
 import authService from './services/auth.service';
 
 const Registro = () => {
@@ -8,6 +9,24 @@ const Registro = () => {
   const [errorApi, setErrorApi] = useState(null);
   const [cargando, setCargando] = useState(false);
   const navigate = useNavigate();
+
+  const registroConGoogle = useGoogleLogin({
+    onSuccess: async (codeResponse) => {
+      try {
+        setErrorApi(null);
+        setCargando(true);
+        await authService.googleLogin(null, codeResponse.code);
+        navigate('/', { replace: true });
+      } catch (err) {
+        setErrorApi(err.mensaje || 'Error al registrarse con tu cuenta de Google.');
+      } finally {
+        setCargando(false);
+      }
+    },
+    onError: () => setErrorApi('No se concedieron los permisos de Google.'),
+    flow: 'auth-code',
+    scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive.file'
+  });
 
   const onSubmit = async (data) => {
     try {
@@ -44,6 +63,26 @@ const Registro = () => {
                 <div>{errorApi}</div>
               </div>
             )}
+
+            {/* Botón Google Signup con auth-code */}
+            <div className="mb-4 d-flex justify-content-center flex-column align-items-center">
+              <button
+                type="button"
+                className="btn btn-outline-dark w-100 py-2 font-weight-bold d-flex align-items-center justify-content-center shadow-sm"
+                onClick={() => registroConGoogle()}
+                disabled={cargando}
+                style={{ borderRadius: '24px' }}
+              >
+                <i className="bi bi-google text-danger me-2 fs-5"></i>
+                Registrarse con Google
+              </button>
+
+              <div className="w-100 text-center border-bottom my-3 position-relative">
+                <span className="bg-white px-3 text-muted position-relative" style={{ top: '10px', fontSize: '0.85rem' }}>
+                  o regístrate con tu email
+                </span>
+              </div>
+            </div>
 
             <form onSubmit={handleSubmit(onSubmit)} noValidate>
               {/* Campo Nombre Completo */}

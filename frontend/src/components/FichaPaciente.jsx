@@ -495,10 +495,10 @@ const FichaPaciente = () => {
                         {sesion.archivoUrl && (
                           <div className="mt-2 bg-light p-2 rounded text-center border overflow-hidden">
                             {sesion.archivoTipo === 'video' ? (
-                              <video src={sesion.archivoUrl} controls className="img-fluid rounded" style={{ maxHeight: '300px', width: '100%', objectFit: 'contain' }} />
+                              <video src={sesion.archivoUrl.startsWith('http') ? sesion.archivoUrl : `http://localhost:5000${sesion.archivoUrl}`} controls className="img-fluid rounded" style={{ maxHeight: '300px', width: '100%', objectFit: 'contain' }} />
                             ) : (
-                              <a href={sesion.archivoUrl} target="_blank" rel="noopener noreferrer">
-                                <img src={sesion.archivoUrl} alt="Evolución" className="img-fluid rounded" style={{ maxHeight: '300px', objectFit: 'contain' }} />
+                              <a href={sesion.archivoUrl.startsWith('http') ? sesion.archivoUrl : `http://localhost:5000${sesion.archivoUrl}`} target="_blank" rel="noopener noreferrer">
+                                <img src={sesion.archivoUrl.startsWith('http') ? sesion.archivoUrl : `http://localhost:5000${sesion.archivoUrl}`} alt="Evolución" className="img-fluid rounded" style={{ maxHeight: '300px', objectFit: 'contain' }} />
                               </a>
                             )}
                           </div>
@@ -517,18 +517,28 @@ const FichaPaciente = () => {
           </div>
         )}
 
-        {/* PESTAÑA: HISTORIAL CLÍNICO */}
+        {/* PESTAÑA: HISTORIAL CLÍNICO Y ANAMNESIS */}
         {activeTab === 'clinica' && (
           <div className="card p-4 border-0 shadow-sm bg-white">
             <div className="row g-4">
               
-              {/* Bloque 1: Contacto */}
+              {/* Bloque 1: Datos Personales e Identificación */}
               <div className="col-12 col-md-6 border-end-md pb-3 pb-md-0">
-                <h4 className="fs-5 mb-3"><i className="bi bi-telephone-fill me-1"></i> Información de Contacto</h4>
-                <table className="table table-borderless align-middle">
+                <h4 className="fs-5 mb-3 text-primary"><i className="bi bi-person-badge-fill me-2"></i> Datos Personales y Filiación</h4>
+                <table className="table table-sm table-borderless align-middle mb-0">
                   <tbody>
+                    {paciente.numeroFicha && (
+                      <tr>
+                        <td className="text-muted-custom font-weight-bold" style={{ width: '160px' }}>Historia Clínica Nº:</td>
+                        <td className="text-dark font-weight-bold">{paciente.numeroFicha}</td>
+                      </tr>
+                    )}
                     <tr>
-                      <td className="text-muted-custom font-weight-bold" style={{ width: '140px' }}>Teléfono:</td>
+                      <td className="text-muted-custom font-weight-bold" style={{ width: '160px' }}>Nombre completo:</td>
+                      <td className="text-dark font-weight-bold">{paciente.nombre}</td>
+                    </tr>
+                    <tr>
+                      <td className="text-muted-custom font-weight-bold">Teléfono:</td>
                       <td className="text-dark">{paciente.telefono || <em className="text-muted">No registrado</em>}</td>
                     </tr>
                     <tr>
@@ -536,75 +546,166 @@ const FichaPaciente = () => {
                       <td className="text-dark">{paciente.emailContact || <em className="text-muted">No registrado</em>}</td>
                     </tr>
                     <tr>
-                      <td className="text-muted-custom font-weight-bold">Dirección:</td>
+                      <td className="text-muted-custom font-weight-bold">Domicilio:</td>
                       <td className="text-dark">{paciente.direccion || <em className="text-muted">No registrado</em>}</td>
                     </tr>
                     <tr>
-                      <td className="text-muted-custom font-weight-bold">Obra social:</td>
-                      <td>
-                        <span className="badge bg-light text-dark border">
-                          {paciente.ObraSocial?.nombre || 'Particular'}
-                        </span>
+                      <td className="text-muted-custom font-weight-bold">Localidad / C.P.:</td>
+                      <td className="text-dark">
+                        {paciente.localidad || '—'} {paciente.codigoPostal ? `(C.P. ${paciente.codigoPostal})` : ''}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="text-muted-custom font-weight-bold">F. Nacimiento / Edad:</td>
+                      <td className="text-dark">
+                        {paciente.fechaNacimiento ? new Date(paciente.fechaNacimiento).toLocaleDateString() : '—'} 
+                        {paciente.edad ? ` (${paciente.edad} años)` : ''}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="text-muted-custom font-weight-bold">Actividad / Ocupación:</td>
+                      <td className="text-dark">{paciente.actividad || <em className="text-muted">No registrada</em>}</td>
+                    </tr>
+                    <tr>
+                      <td className="text-muted-custom font-weight-bold">Deriva (Referido):</td>
+                      <td className="text-dark">{paciente.deriva || <em className="text-muted">No especificado</em>}</td>
+                    </tr>
+                    <tr>
+                      <td className="text-muted-custom font-weight-bold">Médico Clínico:</td>
+                      <td className="text-dark">
+                        {paciente.medicoClinico || <em className="text-muted">No registrado</em>}
+                        {paciente.medicoClinicoTelefono ? ` (Tel: ${paciente.medicoClinicoTelefono})` : ''}
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
-              {/* Bloque 2: Emergencias */}
+              {/* Bloque 2: Cobertura Médica y Emergencias */}
               <div className="col-12 col-md-6">
-                <h4 className="fs-5 mb-3 text-danger"><i className="bi bi-exclamation-triangle-fill me-1"></i> Emergencias médicas</h4>
-                <table className="table table-borderless align-middle">
+                <h4 className="fs-5 mb-3 text-danger"><i className="bi bi-shield-exclamation me-2"></i> Cobertura y Emergencias</h4>
+                <table className="table table-sm table-borderless align-middle mb-4">
                   <tbody>
                     <tr>
-                      <td className="text-muted-custom font-weight-bold" style={{ width: '180px' }}>Svc. de emergencia:</td>
+                      <td className="text-muted-custom font-weight-bold" style={{ width: '180px' }}>Obra Social:</td>
+                      <td>
+                        <span className="badge bg-light text-primary border fs-6">
+                          {paciente.ObraSocial?.nombre || 'Particular'}
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="text-muted-custom font-weight-bold">Nº Afiliado / Plan:</td>
+                      <td className="text-dark font-weight-bold">
+                        {paciente.numeroAfiliado || '—'} {paciente.planObraSocial ? `(Plan: ${paciente.planObraSocial})` : ''}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="text-muted-custom font-weight-bold">Servicio Emergencias:</td>
                       <td className="text-dark font-weight-bold">{paciente.servicioEmergencia || <em className="text-muted font-weight-normal">No registrado</em>}</td>
                     </tr>
                     <tr>
-                      <td className="text-muted-custom font-weight-bold">Contacto de emergencia:</td>
+                      <td className="text-muted-custom font-weight-bold text-danger">Contacto Emergencia:</td>
                       <td className="text-dark font-weight-bold">{paciente.contactoEmergencia || <em className="text-muted font-weight-normal">No registrado</em>}</td>
+                    </tr>
+                    <tr>
+                      <td className="text-muted-custom font-weight-bold">Aparatología:</td>
+                      <td className="text-dark">{paciente.aparatologia || <em className="text-muted">Ninguna</em>}</td>
                     </tr>
                   </tbody>
                 </table>
+
+                {/* Resumen de Alertas Rápidas */}
+                <div className="p-3 bg-light rounded border">
+                  <h6 className="font-weight-bold text-dark mb-2">Indicadores Rápidos de Salud</h6>
+                  <div className="d-flex flex-wrap gap-2">
+                    <span className={`badge ${paciente.propensoHemorragias ? 'bg-danger text-white' : 'bg-secondary-light text-muted border'}`}>
+                      {paciente.propensoHemorragias ? '⚠️ Propenso a Hemorragias' : 'Sin hemorragias frecuentes'}
+                    </span>
+                    <span className={`badge ${paciente.fuma ? 'bg-warning text-dark' : 'bg-secondary-light text-muted border'}`}>
+                      {paciente.fuma ? '🚬 Fumador/a' : 'No fuma'}
+                    </span>
+                    {paciente.embarazada && (
+                      <span className="badge bg-info text-dark">
+                        🤰 Embarazada
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Bloque 3: Antecedentes Clínicos */}
+              {/* Bloque 3: Cuestionario de Afecciones (Anamnesis - Checkboxes) */}
               <div className="col-12 border-top pt-4">
-                <h4 className="fs-5 mb-3 text-primary"><i className="bi bi-heart-pulse-fill me-1"></i> Antecedentes Médicos</h4>
+                <h4 className="fs-5 mb-3 text-primary"><i className="bi bi-heart-pulse-fill me-2"></i> Cuestionario de Afecciones (Anamnesis)</h4>
+                
+                <div className="row g-2 p-3 bg-light rounded border mb-4">
+                  {[
+                    { id: 'problemasCardiacos', label: 'Problemas cardíacos' },
+                    { id: 'presionAlta', label: 'Presión sanguínea alta' },
+                    { id: 'presionBaja', label: 'Presión sanguínea baja' },
+                    { id: 'fiebreReumatica', label: 'Fiebre reumática' },
+                    { id: 'hepatitis', label: 'Hepatitis' },
+                    { id: 'problemasGastricos', label: 'Problemas gástricos' },
+                    { id: 'problemasRenales', label: 'Problemas renales' },
+                    { id: 'hivSida', label: 'HIV / Sida' },
+                    { id: 'epilepsia', label: 'Epilepsia' },
+                    { id: 'artritisArtrosis', label: 'Artritis o Artrosis' },
+                    { id: 'diabetes', label: 'Diabetes' },
+                    { id: 'alteracionesNerviosas', label: 'Alteraciones nerviosas' },
+                    { id: 'cefaleas', label: 'Cefaleas' }
+                  ].map((item) => {
+                    const tieneAfeccion = paciente.afecciones && paciente.afecciones[item.id];
+                    return (
+                      <div key={item.id} className="col-12 col-sm-6 col-md-4">
+                        <div className={`p-2 rounded border d-flex align-items-center ${tieneAfeccion ? 'bg-danger-light border-danger text-danger font-weight-bold' : 'bg-white text-muted'}`}>
+                          <i className={`bi ${tieneAfeccion ? 'bi-check-circle-fill text-danger' : 'bi-circle text-muted'} me-2 fs-5`}></i>
+                          <span>{item.label}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Bloque 4: Cuestionario Detallado */}
+                <h5 className="fs-6 mb-3 font-weight-bold text-dark">Respuestas Detalladas del Cuestionario</h5>
                 <div className="row g-3">
                   <div className="col-12 col-md-6">
-                    <div className="p-3 bg-light rounded border">
-                      <strong className="text-dark mb-2 d-block">Enfermedades clínicas preexistentes</strong>
-                      <p className="mb-0 text-muted-custom" style={{ whiteSpace: 'pre-wrap' }}>
-                        {paciente.antecedentesEnfermedades || 'Sin antecedentes reportados.'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <div className="p-3 bg-light rounded border">
-                      <strong className="text-dark mb-2 d-block">Antecedentes hereditarios/genéticos</strong>
-                      <p className="mb-0 text-muted-custom" style={{ whiteSpace: 'pre-wrap' }}>
-                        {paciente.antecedentesHereditarias || 'Sin antecedentes familiares reportados.'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="col-12 col-md-6">
-                    <div className="p-3 bg-light rounded border">
-                      <strong className="text-dark mb-2 d-block">Medicación habitual / Tratamiento farmacológico</strong>
-                      <p className="mb-0 text-muted-custom" style={{ whiteSpace: 'pre-wrap' }}>
-                        {paciente.antecedentesMedicacion || 'No toma medicación fija actualmente.'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="col-12 col-md-6">
                     <div className="p-3 bg-light rounded border border-danger-light" style={{ backgroundColor: '#fff5f5' }}>
-                      <strong className="text-danger mb-2 d-block"><i className="bi bi-shield-slash-fill me-1"></i> Alergias declaradas</strong>
+                      <strong className="text-danger mb-1 d-block"><i className="bi bi-shield-slash-fill me-1"></i> Alergias a Drogas / Medicamentos</strong>
                       <p className="mb-0 text-dark font-weight-bold" style={{ whiteSpace: 'pre-wrap' }}>
-                        {paciente.antecedentesAlergias || 'Sin alergias conocidas.'}
+                        {paciente.alergiasMedicamentos || paciente.antecedentesAlergias || 'Sin alergias declaradas.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <div className="p-3 bg-light rounded border">
+                      <strong className="text-dark mb-1 d-block"><i className="bi bi-capsule me-1"></i> Medicación Habitual</strong>
+                      <p className="mb-0 text-muted-custom" style={{ whiteSpace: 'pre-wrap' }}>
+                        {paciente.medicamentoHabitual || paciente.antecedentesMedicacion || 'No toma medicación fija.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <div className="p-3 bg-light rounded border">
+                      <strong className="text-dark mb-1 d-block"><i className="bi bi-activity me-1"></i> Otras Enfermedades o Afecciones</strong>
+                      <p className="mb-0 text-muted-custom" style={{ whiteSpace: 'pre-wrap' }}>
+                        {paciente.otrasEnfermedades || paciente.antecedentesEnfermedades || 'Sin otras afecciones reportadas.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <div className="p-3 bg-light rounded border">
+                      <strong className="text-dark mb-1 d-block"><i className="bi bi-dna me-1"></i> Antecedentes Hereditarios de Importancia</strong>
+                      <p className="mb-0 text-muted-custom" style={{ whiteSpace: 'pre-wrap' }}>
+                        {paciente.antecedentesHereditarios || paciente.antecedentesHereditarias || 'Sin antecedentes familiares reportados.'}
                       </p>
                     </div>
                   </div>
                 </div>
+
               </div>
 
             </div>

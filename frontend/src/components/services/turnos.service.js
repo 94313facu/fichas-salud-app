@@ -1,0 +1,37 @@
+import api from './api';
+
+const turnosService = {
+  /**
+   * Obtiene la agenda completa de turnos del profesional
+   */
+  async getTurnos() {
+    const response = await api.get('/api/turnos');
+    return response.data;
+  },
+
+  /**
+   * Registra un nuevo turno
+   */
+  async createTurno(datosTurno) {
+    const response = await api.post('/api/turnos', datosTurno);
+    return response.data;
+  },
+
+  /**
+   * Actualiza los datos de un turno existente
+   */
+  async updateTurno(id, datosTurno) {
+    const response = await api.put(`/api/turnos/${id}`, datosTurno);
+    return response.data;
+  },
+
+  /**
+   * Elimina/cancela un turno
+   */
+  async deleteTurno(id) {
+    const response = await api.delete(`/api/turnos/${id}`);
+    return response.data;
+  }
+};
+
+export default turnosService;
