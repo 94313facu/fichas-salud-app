@@ -34,20 +34,18 @@ app.get('/health', (req, res) => {
   res.json({ estado: 'ok', fecha: new Date() });
 });
 
-// Sincronizar base de datos e iniciar servidor
+// Iniciar servidor y sincronizar base de datos
+app.listen(PORT, () => {
+  console.log(`Servidor de la API corriendo en: http://localhost:${PORT}`);
+});
+
 sequelize
   .sync({ force: false })
   .then(() => {
     console.log('Base de datos sincronizada con éxito.');
-    
     // Inicializar tarea cron para respaldos diarios en Google Drive
     iniciarCronRespaldos();
-
-    app.listen(PORT, () => {
-      console.log(`Servidor de la API corriendo en: http://localhost:${PORT}`);
-    });
   })
   .catch((error) => {
     console.error('No se pudo conectar/sincronizar con la base de datos:', error);
-    process.exit(1);
   });
