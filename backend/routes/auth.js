@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const { Op } = require('sequelize');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const { google } = require('googleapis');
@@ -253,6 +255,93 @@ router.post('/google/sync-drive', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error al forzar sincronización con Google Drive:', error);
     res.status(500).json({ mensaje: 'Error al sincronizar el respaldo con Google Drive.' });
+  }
+});
+// POST /api/auth/forgot-password
+// Solicita un enlace para recuperar la contraseña
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ mensaje: 'El correo electrónico es requerido.' });
+    }
+
+    const profesional = await Profesional.findOne({ where: { username: email.toLowerCase() } });
+    
+    if (!profesional) {
+      return res.status(404).json({ mensaje: 'Su correo electrónico no está registrado en nuestra base de datos.' });
+    }
+
+    // Generar token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    
+    // Token expira en 1 hora
+    const resetExpires = new Date(Date.now() + 3600000); 
+
+    await profesional.update({
+      resetPasswordToken: resetTokenHash,
+      resetPasswordExpires: resetExpires
+    });
+
+    // SIMULACIÓN DE ENVÍO DE CORREO
+    // En un entorno real, aquí se usaría Nodemailer, SendGrid, Resend, etc.
+    const resetUrl = `http://localhost:3000/reset-password/${resetToken}`;
+    console.log('\n======================================================');
+    console.log('SIMULACIÓN DE CORREO ELECTRÓNICO (RECUPERAR CONTRASEÑA)');
+    console.log('Para:', profesional.username);
+    console.log('Enlace de recuperación (Copia y pega en tu navegador):');
+    console.log(resetUrl);
+    console.log('======================================================\n');
+
+    res.json({ mensaje: `Se envió un correo a ${email}, revise su bandeja para gestionar la recuperación.` });
+
+  } catch (error) {
+    console.error('Error en forgot-password:', error);
+    res.status(500).json({ mensaje: 'Error al procesar la solicitud de recuperación.' });
+  }
+});
+
+// POST /api/auth/reset-password
+// Restablece la contraseña utilizando un token válido
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ mensaje: 'El token y la nueva contraseña son requeridos.' });
+    }
+
+    const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const profesional = await Profesional.findOne({
+      where: {
+        resetPasswordToken: resetTokenHash,
+        resetPasswordExpires: {
+          [Op.gt]: new Date() // El token no debe haber expirado
+        }
+      }
+    });
+
+    if (!profesional) {
+      return res.status(400).json({ mensaje: 'El token de recuperación es inválido o ha expirado.' });
+    }
+
+    // Hashear nueva contraseña
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+
+    // Actualizar contraseña y limpiar campos de token
+    await profesional.update({
+      passwordHash,
+      resetPasswordToken: null,
+      resetPasswordExpires: null
+    });
+
+    res.json({ mensaje: 'Tu contraseña ha sido restablecida con éxito.' });
+
+  } catch (error) {
+    console.error('Error en reset-password:', error);
+    res.status(500).json({ mensaje: 'Error al restablecer la contraseña.' });
   }
 });
 

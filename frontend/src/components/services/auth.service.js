@@ -78,6 +78,22 @@ const authService = {
   },
 
   /**
+   * Solicita un enlace de recuperación de contraseña
+   */
+  async forgotPassword(email) {
+    const response = await api.post('/api/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  /**
+   * Restablece la contraseña usando el token
+   */
+  async resetPassword(token, newPassword) {
+    const response = await api.post('/api/auth/reset-password', { token, newPassword });
+    return response.data;
+  },
+
+  /**
    * Cierra la sesión activa
    */
   logout() {

@@ -36,32 +36,15 @@ const pacientesService = {
     return response.data;
   },
 
-  /**
-   * Obtiene la lista de tratamientos de un paciente
-   */
-  async getTratamientos(pacienteId) {
-    const response = await api.get(`/api/pacientes/${pacienteId}/tratamientos`);
-    return response.data;
-  },
 
-  /**
-   * Crea un nuevo plan de tratamiento para el paciente
-   */
-  async createTratamiento(pacienteId, nombre) {
-    const response = await api.post(`/api/pacientes/${pacienteId}/tratamientos`, { nombre });
-    return response.data;
-  },
 
   /**
    * Registra una nueva sesión médica vinculada a un tratamiento
    */
-  async createSesion(pacienteId, notas, archivo, tratamientoId, presupuesto = 0, pago = 0, codigoPractica = null, piezaDental = null, caraDental = null, modalidadCobro = 'obra_social') {
+  async createSesion(pacienteId, notas, archivo, presupuesto = 0, pago = 0, codigoPractica = null, piezaDental = null, caraDental = null, modalidadCobro = 'obra_social') {
     const formData = new FormData();
     if (notas) {
       formData.append('notas', notas);
-    }
-    if (tratamientoId) {
-      formData.append('tratamientoId', tratamientoId);
     }
     formData.append('presupuesto', parseFloat(presupuesto) || 0);
     formData.append('pago', parseFloat(pago) || 0);
@@ -86,13 +69,10 @@ const pacientesService = {
   /**
    * Modifica una sesión existente
    */
-  async updateSesion(pacienteId, sesionId, notas, archivo, tratamientoId, presupuesto = 0, pago = 0) {
+  async updateSesion(pacienteId, sesionId, notas, archivo, presupuesto = 0, pago = 0) {
     const formData = new FormData();
     if (notas !== undefined) {
       formData.append('notas', notas);
-    }
-    if (tratamientoId) {
-      formData.append('tratamientoId', tratamientoId);
     }
     formData.append('presupuesto', parseFloat(presupuesto) || 0);
     formData.append('pago', parseFloat(pago) || 0);

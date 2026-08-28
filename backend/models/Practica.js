@@ -24,6 +24,10 @@ const Practica = sequelize.define('Practica', {
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 0 // 0 = sin restricción de tiempo
+  },
+  planObraSocialId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   tableName: 'Practicas',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import pacientesService from './services/pacientes.service';
 import obrasSocialesService from './services/obrasSociales.service';
@@ -20,7 +20,22 @@ const LISTA_AFECCIONES = [
 ];
 
 const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onSave }) => {
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
+  const { register, handleSubmit, reset, setValue, getValues, watch, formState: { errors } } = useForm();
+  
+  const fechaNac = watch('fechaNacimiento');
+
+  useEffect(() => {
+    if (fechaNac) {
+      const hoy = new Date();
+      const cumple = new Date(fechaNac);
+      let edadCalc = hoy.getFullYear() - cumple.getFullYear();
+      const m = hoy.getMonth() - cumple.getMonth();
+      if (m < 0 || (m === 0 && hoy.getDate() < cumple.getDate())) {
+        edadCalc--;
+      }
+      setValue('edad', edadCalc > 0 ? edadCalc : 0);
+    }
+  }, [fechaNac, setValue]);
   
   const [tabActiva, setTabActiva] = useState('datos'); // 'datos' | 'anamnesis'
   const [cargando, setCargando] = useState(false);
@@ -31,6 +46,30 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
   const [nuevaObraNombre, setNuevaObraNombre] = useState('');
   const [creandoObra, setCreandoObra] = useState(false);
   const [errorObra, setErrorObra] = useState('');
+  const [nuevoPortalId, setNuevoPortalId] = useState('');
+
+  // Estado local para agregar portal dinámicamente
+  const [portales, setPortales] = useState([]);
+  const [mostrarNuevoPortal, setMostrarNuevoPortal] = useState(false);
+  const [nuevoPortalNombre, setNuevoPortalNombre] = useState('');
+  const [nuevoPortalUrl, setNuevoPortalUrl] = useState('');
+  const [creandoPortal, setCreandoPortal] = useState(false);
+
+  useEffect(() => {
+    if (show) {
+      obrasSocialesService.getPortales().then(setPortales).catch(console.error);
+    }
+  }, [show]);
+
+  // Cascada OS → Plan
+  const [planesDisponibles, setPlanesDisponibles] = useState([]);
+  const [cargandoPlanes, setCargandoPlanes] = useState(false);
+
+  // Estado local para agregar plan dinámicamente
+  const [mostrarNuevoPlan, setMostrarNuevoPlan] = useState(false);
+  const [nuevoPlanNombre, setNuevoPlanNombre] = useState('');
+  const [nuevoPlanCodigo, setNuevoPlanCodigo] = useState('');
+  const [creandoPlan, setCreandoPlan] = useState(false);
 
   // Checkboxes de afecciones
   const [afeccionesState, setAfeccionesState] = useState({});
@@ -42,6 +81,54 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
     }));
   };
 
+  const loadPlanes = async (osId) => {
+    if (!osId) {
+      setPlanesDisponibles([]);
+      return;
+    }
+    try {
+      setCargandoPlanes(true);
+      const planes = await obrasSocialesService.getPlanes(osId);
+      setPlanesDisponibles(planes);
+    } catch {
+      setPlanesDisponibles([]);
+    } finally {
+      setCargandoPlanes(false);
+    }
+  };
+
+  const handleOSChange = (e) => {
+    const osId = e.target.value;
+    setValue('obraSocialId', osId);
+    setValue('planObraSocialId', '');
+    setValue('planObraSocial', '');
+    loadPlanes(osId);
+  };
+
+  const handleCrearPortal = async () => {
+    if (!nuevoPortalNombre || nuevoPortalNombre.trim() === '') {
+      setErrorObra('El nombre del portal es obligatorio.');
+      return;
+    }
+    try {
+      setCreandoPortal(true);
+      setErrorObra('');
+      const creado = await obrasSocialesService.createPortal({ 
+        nombre: nuevoPortalNombre.trim(),
+        url: nuevoPortalUrl.trim()
+      });
+      setPortales([...portales, creado]);
+      setNuevoPortalId(creado.id);
+      setNuevoPortalNombre('');
+      setNuevoPortalUrl('');
+      setMostrarNuevoPortal(false);
+    } catch (err) {
+      setErrorObra(err.mensaje || 'Error al crear el portal.');
+    } finally {
+      setCreandoPortal(false);
+    }
+  };
+
   const handleCrearObraSocial = async () => {
     if (!nuevaObraNombre || nuevaObraNombre.trim() === '') {
       setErrorObra('El nombre de la obra social es obligatorio.');
@@ -50,15 +137,51 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
     try {
       setCreandoObra(true);
       setErrorObra('');
-      const creada = await obrasSocialesService.createObraSocial(nuevaObraNombre.trim());
-      setObrasSociales([...obrasSociales, creada]);
+      const creada = await obrasSocialesService.createObraSocial({ 
+        nombre: nuevaObraNombre.trim(),
+        portalFacturacionId: nuevoPortalId || null
+      });
+      if (typeof setObrasSociales === 'function') {
+        setObrasSociales([...obrasSociales, creada]);
+      }
       setValue('obraSocialId', creada.id);
       setNuevaObraNombre('');
+      setNuevoPortalId('');
       setMostrarNuevaObra(false);
+      loadPlanes(creada.id);
     } catch (err) {
       setErrorObra(err.mensaje || 'Error al crear la obra social.');
     } finally {
       setCreandoObra(false);
+    }
+  };
+
+  const handleCrearPlanInline = async () => {
+    const osId = getValues('obraSocialId');
+    if (!osId) {
+      setErrorObra('Debe seleccionar una Obra Social primero.');
+      return;
+    }
+    if (!nuevoPlanNombre || nuevoPlanNombre.trim() === '') {
+      setErrorObra('El nombre del plan es obligatorio.');
+      return;
+    }
+    try {
+      setCreandoPlan(true);
+      setErrorObra('');
+      const creado = await obrasSocialesService.createPlan(osId, {
+        nombre: nuevoPlanNombre.trim(),
+        codigo: nuevoPlanCodigo.trim()
+      });
+      setPlanesDisponibles([...planesDisponibles, creado]);
+      setValue('planObraSocialId', creado.id);
+      setNuevoPlanNombre('');
+      setNuevoPlanCodigo('');
+      setMostrarNuevoPlan(false);
+    } catch (err) {
+      setErrorObra(err.mensaje || 'Error al crear el plan.');
+    } finally {
+      setCreandoPlan(false);
     }
   };
 
@@ -70,7 +193,8 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
       const pacientePayload = {
         ...data,
         afecciones: afeccionesState,
-        obraSocialId: data.obraSocialId ? parseInt(data.obraSocialId) : null
+        obraSocialId: data.obraSocialId ? parseInt(data.obraSocialId) : null,
+        planObraSocialId: data.planObraSocialId ? parseInt(data.planObraSocialId) : null
       };
 
       const nuevoPaciente = await pacientesService.createPaciente(pacientePayload);
@@ -302,10 +426,10 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
                   <div className="col-12 col-sm-6">
                     <label className="form-label font-weight-bold">Obra Social</label>
                     <div className="d-flex gap-2">
-                      <select className="form-select" {...register('obraSocialId')} disabled={cargando}>
+                      <select className="form-select" {...register('obraSocialId')} onChange={handleOSChange} disabled={cargando}>
                         <option value="">Particular / Sin Obra Social</option>
                         {obrasSociales.map((os) => (
-                          <option key={os.id} value={os.id}>{os.nombre}</option>
+                          <option key={os.id} value={os.id}>{os.nombre}{!os.activa ? ' (Pausada)' : ''}</option>
                         ))}
                       </select>
                       <button
@@ -318,25 +442,77 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
                     </div>
 
                     {mostrarNuevaObra && (
-                      <div className="card p-2 mt-2 bg-light border">
-                        <div className="input-group input-group-sm">
+                      <div className="card p-3 mt-2 bg-light border shadow-sm">
+                        <h6 className="font-weight-bold text-accent mb-3" style={{ fontSize: '0.9rem' }}>Nueva Obra Social</h6>
+                        <div className="mb-2">
+                          <label className="form-label small font-weight-bold mb-1">Nombre</label>
                           <input
                             type="text"
-                            className="form-control"
-                            placeholder="Nombre nueva obra social"
+                            className="form-control form-control-sm"
+                            placeholder="Ej. OSDE"
                             value={nuevaObraNombre}
                             onChange={(e) => setNuevaObraNombre(e.target.value)}
                           />
-                          <button
-                            className="btn btn-accent text-white"
-                            type="button"
-                            onClick={handleCrearObraSocial}
-                            disabled={creandoObra}
-                          >
-                            Guardar
-                          </button>
                         </div>
-                        {errorObra && <small className="text-danger mt-1">{errorObra}</small>}
+                        
+                        <div className="mb-3">
+                          <label className="form-label small font-weight-bold mb-1">Portal de Facturación</label>
+                          <div className="d-flex gap-2">
+                            <select className="form-select form-select-sm" value={nuevoPortalId} onChange={e => setNuevoPortalId(e.target.value)}>
+                              <option value="">— Sin portal —</option>
+                              {portales.map(p => (
+                                <option key={p.id} value={p.id}>{p.nombre}</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary text-nowrap"
+                              onClick={() => setMostrarNuevoPortal(!mostrarNuevoPortal)}
+                              title="Nuevo portal"
+                            >
+                              <i className="bi bi-plus"></i>
+                            </button>
+                          </div>
+                        </div>
+
+                        {mostrarNuevoPortal && (
+                          <div className="p-2 mb-3 bg-white border rounded">
+                            <label className="form-label small font-weight-bold mb-1">Nombre del Portal</label>
+                            <input
+                              type="text"
+                              className="form-control form-control-sm mb-2"
+                              placeholder="Ej. FOPC"
+                              value={nuevoPortalNombre}
+                              onChange={e => setNuevoPortalNombre(e.target.value)}
+                            />
+                            <label className="form-label small font-weight-bold mb-1">URL (Opcional)</label>
+                            <input
+                              type="text"
+                              className="form-control form-control-sm mb-2"
+                              placeholder="https://..."
+                              value={nuevoPortalUrl}
+                              onChange={e => setNuevoPortalUrl(e.target.value)}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-secondary w-100"
+                              onClick={handleCrearPortal}
+                              disabled={creandoPortal}
+                            >
+                              Registrar Portal
+                            </button>
+                          </div>
+                        )}
+
+                        <button
+                          className="btn btn-accent btn-sm text-white font-weight-bold w-100"
+                          type="button"
+                          onClick={handleCrearObraSocial}
+                          disabled={creandoObra}
+                        >
+                          Guardar Obra Social
+                        </button>
+                        {errorObra && <small className="text-danger mt-2 d-block">{errorObra}</small>}
                       </div>
                     )}
                   </div>
@@ -354,13 +530,63 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
 
                   <div className="col-12 col-sm-3">
                     <label className="form-label font-weight-bold">Plan</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Ej. 210 / Premium"
-                      {...register('planObraSocial')}
-                      disabled={cargando}
-                    />
+                    {planesDisponibles.length > 0 || getValues('obraSocialId') ? (
+                      <div>
+                        <div className="d-flex gap-2">
+                          <select className="form-select" {...register('planObraSocialId')} disabled={cargando || cargandoPlanes}>
+                            <option value="">— Sin plan —</option>
+                            {planesDisponibles.map(p => (
+                              <option key={p.id} value={p.id}>{p.nombre}{p.codigo ? ` (${p.codigo})` : ''}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="btn btn-outline-accent text-nowrap"
+                            onClick={() => setMostrarNuevoPlan(!mostrarNuevoPlan)}
+                            disabled={!getValues('obraSocialId')}
+                            title="Nuevo plan"
+                          >
+                            <i className="bi bi-plus-lg"></i>
+                          </button>
+                        </div>
+                        {mostrarNuevoPlan && (
+                          <div className="card p-2 mt-2 bg-light border shadow-sm">
+                            <label className="form-label small font-weight-bold mb-1">Nombre del Plan</label>
+                            <input
+                              type="text"
+                              className="form-control form-control-sm mb-2"
+                              placeholder="Ej. Plan 210"
+                              value={nuevoPlanNombre}
+                              onChange={e => setNuevoPlanNombre(e.target.value)}
+                            />
+                            <label className="form-label small font-weight-bold mb-1">Código (Opcional)</label>
+                            <input
+                              type="text"
+                              className="form-control form-control-sm mb-2"
+                              placeholder="Ej. 210"
+                              value={nuevoPlanCodigo}
+                              onChange={e => setNuevoPlanCodigo(e.target.value)}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-accent text-white font-weight-bold w-100"
+                              onClick={handleCrearPlanInline}
+                              disabled={creandoPlan}
+                            >
+                              Guardar Plan
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Plan (texto libre)"
+                        {...register('planObraSocial')}
+                        disabled={cargando}
+                      />
+                    )}
                   </div>
 
                   <div className="col-12 col-sm-6">

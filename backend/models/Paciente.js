@@ -71,7 +71,13 @@ const Paciente = sequelize.define('Paciente', {
   },
   planObraSocial: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: true,
+    comment: 'Legacy: nombre de plan como texto libre. Usar planObraSocialId cuando sea posible.'
+  },
+  planObraSocialId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'FK al plan formal de la Obra Social'
   },
   servicioEmergencia: {
     type: DataTypes.STRING,

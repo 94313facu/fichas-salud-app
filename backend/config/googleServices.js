@@ -1,7 +1,7 @@
 const { google } = require('googleapis');
 const { Readable } = require('stream');
 const path = require('path');
-const { Profesional, Paciente, Sesion, ObraSocial, Tratamiento } = require('../models');
+const { Profesional, Paciente, Sesion, ObraSocial } = require('../models');
 require('dotenv').config();
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -38,7 +38,7 @@ async function getOAuth2Client(profesionalId) {
 /**
  * Google Calendar: Crear Evento para un Turno
  */
-async function crearEventoCalendar(profesionalId, turno, pacienteNombre, tratamientoNombre = '') {
+async function crearEventoCalendar(profesionalId, turno, pacienteNombre) {
   try {
     const auth = await getOAuth2Client(profesionalId);
     if (!auth || !auth.credentials || !auth.credentials.refresh_token) {
@@ -49,7 +49,7 @@ async function crearEventoCalendar(profesionalId, turno, pacienteNombre, tratami
     const startTime = new Date(turno.fechaHora);
     const endTime = new Date(startTime.getTime() + (turno.duracionMinutos || 30) * 60000);
 
-    const summary = `Turno: ${pacienteNombre}${tratamientoNombre ? ` (${tratamientoNombre})` : ''}`;
+    const summary = `Turno: ${pacienteNombre}`;
     const description = `Consulta de Salud / Ficha Médica\nPaciente: ${pacienteNombre}\nNotas: ${turno.notas || 'Sin notas adicionadas.'}`;
 
     const res = await calendar.events.insert({
@@ -79,7 +79,7 @@ async function crearEventoCalendar(profesionalId, turno, pacienteNombre, tratami
 /**
  * Google Calendar: Actualizar Evento de Turno
  */
-async function actualizarEventoCalendar(profesionalId, googleEventId, turno, pacienteNombre, tratamientoNombre = '') {
+async function actualizarEventoCalendar(profesionalId, googleEventId, turno, pacienteNombre) {
   if (!googleEventId) return null;
   try {
     const auth = await getOAuth2Client(profesionalId);
@@ -89,7 +89,7 @@ async function actualizarEventoCalendar(profesionalId, googleEventId, turno, pac
     const startTime = new Date(turno.fechaHora);
     const endTime = new Date(startTime.getTime() + (turno.duracionMinutos || 30) * 60000);
 
-    const summary = `Turno: ${pacienteNombre}${tratamientoNombre ? ` (${tratamientoNombre})` : ''}`;
+    const summary = `Turno: ${pacienteNombre}`;
     const description = `Consulta de Salud / Ficha Médica\nPaciente: ${pacienteNombre}\nNotas: ${turno.notas || 'Sin notas.'}\nEstado: ${turno.estado}`;
 
     await calendar.events.update({
@@ -147,8 +147,7 @@ async function subirRespaldoDrive(profesionalId) {
     const pacientes = await Paciente.findAll({
       where: { profesionalId },
       include: [
-        { model: Sesion, required: false, include: [{ model: Tratamiento, attributes: ['nombre'], required: false }] },
-        { model: Tratamiento, required: false },
+        { model: Sesion, required: false },
         { model: ObraSocial, attributes: ['nombre'], required: false }
       ],
       order: [['nombre', 'ASC']]

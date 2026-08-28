@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useGoogleLogin } from '@react-oauth/google';
@@ -12,6 +12,13 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || "/";
+
+  // Evitar que un usuario logueado acceda al Login
+  useEffect(() => {
+    if (authService.isAuthenticated()) {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
 
   // Login con Google OAuth (auth-code)
   const loginConGoogle = useGoogleLogin({
@@ -130,6 +137,11 @@ const Login = () => {
                 {errors.password && (
                   <div className="invalid-feedback">{errors.password.message}</div>
                 )}
+                <div className="text-end mt-2">
+                  <Link to="/recuperar-password" className="text-accent text-decoration-none small">
+                    ¿Olvidaste tu contraseña?
+                  </Link>
+                </div>
               </div>
 
               {/* Botón Ingresar */}

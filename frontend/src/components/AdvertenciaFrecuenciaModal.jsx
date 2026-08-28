@@ -85,13 +85,7 @@ const AdvertenciaFrecuenciaModal = ({ show, onHide, resultadoValidacion, onConfi
               <i className="bi bi-currency-dollar"></i> Cobrar como Particular (Sin Obra Social)
             </button>
 
-            <button
-              type="button"
-              className="btn btn-outline-danger w-100 font-weight-bold d-flex align-items-center justify-content-center gap-2"
-              onClick={onConfirmObraSocial}
-            >
-              <i className="bi bi-exclamation-diamond-fill"></i> Guardar de todas formas (Pendiente de facturar)
-            </button>
+
 
             <button
               type="button"

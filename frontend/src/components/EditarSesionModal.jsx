@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import pacientesService from './services/pacientes.service';
 
-const EditarSesionModal = ({ show, onHide, pacienteId, sesion, tratamientos, setTratamientos, onSave }) => {
+const EditarSesionModal = ({ show, onHide, pacienteId, sesion, onSave }) => {
   const [notas, setNotas] = useState('');
-  const [tratamientoId, setTratamientoId] = useState('');
   const [presupuesto, setPresupuesto] = useState(0);
   const [pago, setPago] = useState(0);
   const [archivo, setArchivo] = useState(null);
@@ -15,7 +14,6 @@ const EditarSesionModal = ({ show, onHide, pacienteId, sesion, tratamientos, set
   useEffect(() => {
     if (sesion) {
       setNotas(sesion.notas || '');
-      setTratamientoId(sesion.tratamientoId || '');
       setPresupuesto(parseFloat(sesion.presupuesto) || 0);
       setPago(parseFloat(sesion.pago) || 0);
       setArchivo(null);
@@ -31,20 +29,7 @@ const EditarSesionModal = ({ show, onHide, pacienteId, sesion, tratamientos, set
   // Saldo auto-calculado dinámicamente en el cliente
   const saldo = (parseFloat(presupuesto) || 0) - (parseFloat(pago) || 0);
 
-  // Crear un nuevo tratamiento al vuelo
-  const handleNuevoTratamiento = async () => {
-    const nombre = prompt('Ingresa el nombre del nuevo plan de tratamiento (ej. Fisioterapia Lumbar):');
-    if (nombre && nombre.trim()) {
-      try {
-        setErrorMsg(null);
-        const nuevoTratamiento = await pacientesService.createTratamiento(pacienteId, nombre.trim());
-        setTratamientos(prev => [...prev, nuevoTratamiento]);
-        setTratamientoId(nuevoTratamiento.id); // Pre-seleccionar
-      } catch (err) {
-        setErrorMsg(err.mensaje || 'Error al registrar el plan de tratamiento.');
-      }
-    }
-  };
+
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -62,10 +47,6 @@ const EditarSesionModal = ({ show, onHide, pacienteId, sesion, tratamientos, set
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!tratamientoId) {
-      setErrorMsg('Vincular la evolución a un plan de tratamiento es obligatorio.');
-      return;
-    }
 
     try {
       setGuardando(true);
@@ -76,7 +57,6 @@ const EditarSesionModal = ({ show, onHide, pacienteId, sesion, tratamientos, set
         sesion.id,
         notas,
         archivo,
-        parseInt(tratamientoId),
         presupuesto,
         pago
       );
@@ -127,34 +107,6 @@ const EditarSesionModal = ({ show, onHide, pacienteId, sesion, tratamientos, set
                   ></textarea>
                 </div>
 
-                {/* Plan de tratamiento asociado */}
-                <div className="col-12 col-md-6">
-                  <div className="d-flex justify-content-between align-items-center mb-1">
-                    <label htmlFor="editTratamientoSelect" className="form-label mb-0 font-weight-bold">Plan de tratamiento</label>
-                    <button
-                      type="button"
-                      className="btn btn-link p-0 text-accent font-weight-bold text-decoration-none"
-                      style={{ height: 'auto', fontSize: '0.9rem' }}
-                      onClick={handleNuevoTratamiento}
-                      disabled={guardando}
-                    >
-                      <i className="bi bi-plus-circle-fill me-1"></i> Nuevo Plan
-                    </button>
-                  </div>
-                  <select
-                    id="editTratamientoSelect"
-                    className="form-select"
-                    value={tratamientoId}
-                    onChange={(e) => setTratamientoId(e.target.value)}
-                    disabled={guardando}
-                    required
-                  >
-                    <option value="">Selecciona un plan...</option>
-                    {tratamientos.map(t => (
-                      <option key={t.id} value={t.id}>{t.nombre}</option>
-                    ))}
-                  </select>
-                </div>
 
                 {/* Presupuesto, Pago y Saldo */}
                 <div className="col-12 bg-white p-3 rounded border">

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { Paciente, Sesion, ObraSocial, Tratamiento, Turno } = require('../models');
+const { Paciente, Sesion, ObraSocial, PlanObraSocial, PortalFacturacion, Turno } = require('../models');
 const { uploadFile } = require('../config/cloudinary');
 const authMiddleware = require('../middlewares/authMiddleware');
 
@@ -24,7 +24,12 @@ router.get('/', async (req, res) => {
       include: [
         {
           model: ObraSocial,
-          attributes: ['id', 'nombre']
+          attributes: ['id', 'nombre'],
+          include: [{ model: PortalFacturacion, attributes: ['id', 'nombre', 'url'] }]
+        },
+        {
+          model: PlanObraSocial,
+          attributes: ['id', 'nombre', 'codigo']
         }
       ],
       order: [['nombre', 'ASC']]
@@ -71,7 +76,8 @@ router.post('/', async (req, res) => {
       antecedentesHereditarias,
       antecedentesMedicacion,
       antecedentesAlergias,
-      obraSocialId
+      obraSocialId,
+      planObraSocialId
     } = req.body;
 
     if (!nombre || nombre.trim() === '') {
@@ -110,6 +116,7 @@ router.post('/', async (req, res) => {
       antecedentesMedicacion: antecedentesMedicacion ? antecedentesMedicacion.trim() : null,
       antecedentesAlergias: antecedentesAlergias ? antecedentesAlergias.trim() : null,
       obraSocialId: obraSocialId || null,
+      planObraSocialId: planObraSocialId || null,
       profesionalId: req.user.id
     });
 
@@ -129,11 +136,6 @@ router.get('/exportar', async (req, res) => {
       include: [
         {
           model: Sesion,
-          required: false,
-          include: [{ model: Tratamiento, attributes: ['nombre'], required: false }]
-        },
-        {
-          model: Tratamiento,
           required: false
         },
         {
@@ -177,22 +179,22 @@ router.get('/:id', async (req, res) => {
       include: [
         {
           model: Sesion,
-          required: false,
-          include: [{ model: Tratamiento, attributes: ['nombre'], required: false }]
-        },
-        {
-          model: Tratamiento,
           required: false
         },
         {
           model: ObraSocial,
           attributes: ['id', 'nombre'],
+          required: false,
+          include: [{ model: PortalFacturacion, attributes: ['id', 'nombre', 'url'], required: false }]
+        },
+        {
+          model: PlanObraSocial,
+          attributes: ['id', 'nombre', 'codigo'],
           required: false
         },
         {
           model: Turno,
-          required: false,
-          include: [{ model: Tratamiento, attributes: ['nombre'], required: false }]
+          required: false
         }
       ]
     });
@@ -278,7 +280,8 @@ router.put('/:id', async (req, res) => {
       antecedentesHereditarias,
       antecedentesMedicacion,
       antecedentesAlergias,
-      obraSocialId
+      obraSocialId,
+      planObraSocialId
     } = req.body;
 
     const paciente = await Paciente.findOne({
@@ -325,13 +328,17 @@ router.put('/:id', async (req, res) => {
       antecedentesHereditarias: antecedentesHereditarias !== undefined ? (antecedentesHereditarias ? antecedentesHereditarias.trim() : null) : paciente.antecedentesHereditarias,
       antecedentesMedicacion: antecedentesMedicacion !== undefined ? (antecedentesMedicacion ? antecedentesMedicacion.trim() : null) : paciente.antecedentesMedicacion,
       antecedentesAlergias: antecedentesAlergias !== undefined ? (antecedentesAlergias ? antecedentesAlergias.trim() : null) : paciente.antecedentesAlergias,
-      obraSocialId: obraSocialId !== undefined ? (obraSocialId || null) : paciente.obraSocialId
+      obraSocialId: obraSocialId !== undefined ? (obraSocialId || null) : paciente.obraSocialId,
+      planObraSocialId: planObraSocialId !== undefined ? (planObraSocialId || null) : paciente.planObraSocialId
     });
 
     // Devolver el paciente actualizado incluyendo obra social
     const pacienteActualizado = await Paciente.findOne({
       where: { id },
-      include: [{ model: ObraSocial, attributes: ['id', 'nombre'] }]
+      include: [
+        { model: ObraSocial, attributes: ['id', 'nombre'], include: [{ model: PortalFacturacion, attributes: ['id', 'nombre', 'url'] }] },
+        { model: PlanObraSocial, attributes: ['id', 'nombre', 'codigo'] }
+      ]
     });
 
     res.json(pacienteActualizado);
@@ -341,72 +348,13 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// GET /api/pacientes/:pacienteId/tratamientos
-// Obtener todos los planes de tratamiento de un paciente
-router.get('/:pacienteId/tratamientos', async (req, res) => {
-  try {
-    const { pacienteId } = req.params;
-    const paciente = await Paciente.findOne({
-      where: { id: pacienteId, profesionalId: req.user.id }
-    });
-
-    if (!paciente) {
-      return res.status(404).json({ mensaje: 'Paciente no encontrado o acceso no autorizado.' });
-    }
-
-    const tratamientos = await Tratamiento.findAll({
-      where: { pacienteId },
-      order: [['createdAt', 'DESC']]
-    });
-
-    res.json(tratamientos);
-  } catch (error) {
-    console.error('Error al obtener tratamientos:', error);
-    res.status(500).json({ mensaje: 'Error al obtener los planes de tratamiento.' });
-  }
-});
-
-// POST /api/pacientes/:pacienteId/tratamientos
-// Registrar un nuevo tratamiento para el paciente
-router.post('/:pacienteId/tratamientos', async (req, res) => {
-  try {
-    const { pacienteId } = req.params;
-    const { nombre } = req.body;
-
-    if (!nombre || nombre.trim() === '') {
-      return res.status(400).json({ mensaje: 'El nombre del tratamiento es obligatorio.' });
-    }
-
-    const paciente = await Paciente.findOne({
-      where: { id: pacienteId, profesionalId: req.user.id }
-    });
-
-    if (!paciente) {
-      return res.status(404).json({ mensaje: 'Paciente no encontrado o acceso no autorizado.' });
-    }
-
-    const nuevoTratamiento = await Tratamiento.create({
-      nombre: nombre.trim(),
-      pacienteId: paciente.id
-    });
-
-    res.status(201).json(nuevoTratamiento);
-  } catch (error) {
-    console.error('Error al crear tratamiento:', error);
-    res.status(500).json({ mensaje: 'Error al guardar el tratamiento.' });
-  }
-});
-
+// (Rutas de tratamientos eliminadas)
 // POST /api/pacientes/:id/sesiones
-// Registrar una nueva evolución vinculada a un Tratamiento
+// Registrar una nueva evolución
 router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { notas, tratamientoId, presupuesto, pago, codigoPractica, piezaDental, caraDental, modalidadCobro } = req.body;
-
-    if (!tratamientoId) {
-      return res.status(400).json({ mensaje: 'Vincular la evolución a un plan de tratamiento es obligatorio.' });
-    }
+    const { notas, presupuesto, pago, codigoPractica, piezaDental, caraDental, modalidadCobro } = req.body;
 
     // Verificar paciente
     const paciente = await Paciente.findOne({
@@ -415,15 +363,6 @@ router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
 
     if (!paciente) {
       return res.status(404).json({ mensaje: 'Paciente no encontrado o acceso no autorizado.' });
-    }
-
-    // Verificar que el tratamiento pertenezca al paciente
-    const tratamiento = await Tratamiento.findOne({
-      where: { id: tratamientoId, pacienteId: paciente.id }
-    });
-
-    if (!tratamiento) {
-      return res.status(400).json({ mensaje: 'El plan de tratamiento seleccionado no es válido para este paciente.' });
     }
 
     let archivoUrl = null;
@@ -455,8 +394,7 @@ router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
       piezaDental: piezaDental ? piezaDental.trim() : null,
       caraDental: caraDental ? caraDental.trim() : null,
       modalidadCobro: modalidadCobro || 'obra_social',
-      pacienteId: paciente.id,
-      tratamientoId: tratamiento.id
+      pacienteId: paciente.id
     });
 
     res.status(201).json(nuevaSesion);
@@ -467,11 +405,11 @@ router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
 });
 
 // PUT /api/pacientes/:pacienteId/sesiones/:id
-// Editar una evolución y opcionalmente reasignar su Tratamiento
+// Editar una evolución
 router.put('/:pacienteId/sesiones/:id', upload.single('archivo'), async (req, res) => {
   try {
     const { pacienteId, id } = req.params;
-    const { notas, tratamientoId, presupuesto, pago } = req.body;
+    const { notas, presupuesto, pago } = req.body;
 
     // Verificar paciente
     const paciente = await Paciente.findOne({
@@ -489,17 +427,6 @@ router.put('/:pacienteId/sesiones/:id', upload.single('archivo'), async (req, re
 
     if (!sesion) {
       return res.status(404).json({ mensaje: 'Sesión no encontrada.' });
-    }
-
-    // Si se envía tratamientoId, verificar validez
-    if (tratamientoId) {
-      const tratamiento = await Tratamiento.findOne({
-        where: { id: tratamientoId, pacienteId: paciente.id }
-      });
-      if (!tratamiento) {
-        return res.status(400).json({ mensaje: 'El plan de tratamiento seleccionado no es válido para este paciente.' });
-      }
-      sesion.tratamientoId = tratamiento.id;
     }
 
     let archivoUrl = sesion.archivoUrl;

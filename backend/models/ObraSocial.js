@@ -13,6 +13,17 @@ const ObraSocial = sequelize.define('ObraSocial', {
     validate: {
       notEmpty: true
     }
+  },
+  activa: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
+    comment: 'Permite pausar/activar la obra social sin eliminarla'
+  },
+  notas: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Notas internas del profesional sobre el convenio'
   }
 }, {
   tableName: 'ObrasSociales',

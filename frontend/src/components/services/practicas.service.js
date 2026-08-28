@@ -12,9 +12,14 @@ const practicasService = {
   /**
    * Busca si un código de práctica ya fue registrado
    */
-  async buscarCodigo(codigo) {
+  async buscarCodigo(codigo, obraSocialId, planObraSocialId) {
     if (!codigo || !codigo.trim()) return { existe: false };
-    const response = await api.get(`/api/practicas/buscar?codigo=${encodeURIComponent(codigo.trim())}`);
+    
+    let url = `/api/practicas/buscar?codigo=${encodeURIComponent(codigo.trim())}`;
+    if (obraSocialId) url += `&obraSocialId=${obraSocialId}`;
+    if (planObraSocialId) url += `&planObraSocialId=${planObraSocialId}`;
+
+    const response = await api.get(url);
     return response.data;
   },
 

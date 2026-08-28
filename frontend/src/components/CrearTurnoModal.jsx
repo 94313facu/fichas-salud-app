@@ -4,22 +4,30 @@ import turnosService from './services/turnos.service';
 import practicasService from './services/practicas.service';
 import AdvertenciaFrecuenciaModal from './AdvertenciaFrecuenciaModal';
 
-const CrearTurnoModal = ({ show, onHide, paciente, tratamientos, onSave }) => {
+const CrearTurnoModal = ({ show, onHide, paciente, onSave }) => {
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
   const [cargando, setCargando] = useState(false);
   const [errorApi, setErrorApi] = useState(null);
 
   const [codigoPractica, setCodigoPractica] = useState('');
   const [nombrePractica, setNombrePractica] = useState('');
+  const [isNuevaPractica, setIsNuevaPractica] = useState(false);
   const [piezaDental, setPiezaDental] = useState('');
   const [caraDental, setCaraDental] = useState('');
   const [alcanceNew, setAlcanceNew] = useState('paciente');
   const [mesesNew, setMesesNew] = useState('12');
-  const [esNuevaPractica, setEsNuevaPractica] = useState(false);
 
   const [validacionResult, setValidacionResult] = useState(null);
   const [showAdvertencia, setShowAdvertencia] = useState(false);
   const [pendingFormData, setPendingFormData] = useState(null);
+  
+  const [catalogoPracticas, setCatalogoPracticas] = useState([]);
+
+  React.useEffect(() => {
+    if (show) {
+      practicasService.getPracticas().then(setCatalogoPracticas).catch(console.error);
+    }
+  }, [show]);
 
   if (!show || !paciente) return null;
 
@@ -28,15 +36,16 @@ const CrearTurnoModal = ({ show, onHide, paciente, tratamientos, onSave }) => {
       setErrorApi(null);
       setCargando(true);
 
-      // Si es una práctica nueva que el profesional carga por primera vez
-      if (codigoPractica.trim() && esNuevaPractica && nombrePractica.trim()) {
+      // Guardar o actualizar regla de práctica si se ingresó nombre
+      if (codigoPractica.trim() && nombrePractica.trim()) {
         await practicasService.savePractica({
           codigo: codigoPractica.trim(),
           nombre: nombrePractica.trim(),
           alcance: alcanceNew,
-          mesesFrecuencia: parseInt(mesesNew) || 0
+          mesesFrecuencia: parseInt(mesesNew) || 0,
+          obraSocialId: paciente?.obraSocialId || null,
+          planObraSocialId: paciente?.planObraSocialId || null
         });
-        setEsNuevaPractica(false);
       }
 
       // Validar frecuencia si ingresó un código de práctica
@@ -74,7 +83,7 @@ const CrearTurnoModal = ({ show, onHide, paciente, tratamientos, onSave }) => {
 
       const turnoPayload = {
         pacienteId: paciente.id,
-        tratamientoId: data.tratamientoId ? parseInt(data.tratamientoId) : null,
+
         fechaHora: fechaHoraCombo,
         duracionMinutos: parseInt(data.duracionMinutos) || 30,
         notas: data.notas ? data.notas.trim() : null,
@@ -89,6 +98,7 @@ const CrearTurnoModal = ({ show, onHide, paciente, tratamientos, onSave }) => {
       reset();
       setCodigoPractica('');
       setNombrePractica('');
+      setIsNuevaPractica(false);
       setPiezaDental('');
       setCaraDental('');
       onSave(nuevoTurno);
@@ -148,10 +158,63 @@ const CrearTurnoModal = ({ show, onHide, paciente, tratamientos, onSave }) => {
                   {/* Código de Práctica y Facturación */}
                   <div className="col-12">
                     <div className="p-3 bg-light rounded border">
-                      <h6 className="font-weight-bold text-primary mb-2" style={{ fontSize: '0.9rem' }}>
-                        <i className="bi bi-tag-fill me-1"></i> Código de Práctica a Realizar (Opcional)
-                      </h6>
                       <div className="row g-2">
+                        <div className="col-12 col-sm-7">
+                          {isNuevaPractica ? (
+                            <div className="d-flex gap-2">
+                              <input
+                                type="text"
+                                className="form-control form-control-sm"
+                                placeholder="Ej. Nueva práctica..."
+                                value={nombrePractica}
+                                onChange={(e) => setNombrePractica(e.target.value)}
+                              />
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-secondary px-2"
+                                onClick={() => {
+                                  setIsNuevaPractica(false);
+                                  setNombrePractica('');
+                                  setCodigoPractica('');
+                                }}
+                                title="Cancelar y seleccionar de la lista"
+                              >
+                                <i className="bi bi-x-lg"></i>
+                              </button>
+                            </div>
+                          ) : (
+                            <select
+                              className="form-select form-select-sm"
+                              value={nombrePractica}
+                              onChange={async (e) => {
+                                const val = e.target.value;
+                                if (val === '__NUEVA__') {
+                                  setIsNuevaPractica(true);
+                                  setNombrePractica('');
+                                  setCodigoPractica('');
+                                  setMesesNew(0);
+                                } else {
+                                  setNombrePractica(val);
+                                  const practica = catalogoPracticas.find(p => p.nombre.toLowerCase() === val.toLowerCase());
+                                  if (practica) {
+                                    setCodigoPractica(practica.codigo);
+                                    const search = await practicasService.buscarCodigo(practica.codigo, paciente?.obraSocialId, paciente?.planObraSocialId);
+                                    if (search.existe) {
+                                      setAlcanceNew(search.practica.alcance || 'paciente');
+                                      setMesesNew(search.practica.mesesFrecuencia !== undefined ? search.practica.mesesFrecuencia : 0);
+                                    }
+                                  }
+                                }
+                              }}
+                            >
+                              <option value="">Seleccione una práctica...</option>
+                              {catalogoPracticas.filter((p, index, self) => index === self.findIndex((t) => t.nombre.toLowerCase() === p.nombre.toLowerCase())).map(p => (
+                                <option key={p.id} value={p.nombre}>{p.nombre}</option>
+                              ))}
+                              <option value="__NUEVA__" className="fw-bold text-primary">+ Crear nueva práctica...</option>
+                            </select>
+                          )}
+                        </div>
                         <div className="col-12 col-sm-5">
                           <input
                             type="text"
@@ -161,35 +224,25 @@ const CrearTurnoModal = ({ show, onHide, paciente, tratamientos, onSave }) => {
                             onChange={async (e) => {
                               const val = e.target.value;
                               setCodigoPractica(val);
-                              if (val.trim().length >= 2) {
-                                const search = await practicasService.buscarCodigo(val);
+                              if (val) {
+                                const search = await practicasService.buscarCodigo(val, paciente?.obraSocialId, paciente?.planObraSocialId);
                                 if (search.existe) {
                                   setNombrePractica(search.practica.nombre);
-                                  setEsNuevaPractica(false);
+                                  setAlcanceNew(search.practica.alcance || 'paciente');
+                                  setMesesNew(search.practica.mesesFrecuencia !== undefined ? search.practica.mesesFrecuencia : 0);
                                 } else {
-                                  setEsNuevaPractica(true);
                                   setNombrePractica('');
                                 }
-                              } else {
-                                setEsNuevaPractica(false);
                               }
                             }}
-                          />
-                        </div>
-                        <div className="col-12 col-sm-7">
-                          <input
-                            type="text"
-                            className="form-control form-control-sm"
-                            placeholder="Nombre de la práctica"
-                            value={nombrePractica}
-                            onChange={(e) => setNombrePractica(e.target.value)}
+                            readOnly={!isNuevaPractica && nombrePractica !== ''}
                           />
                         </div>
 
-                        {esNuevaPractica && (
-                          <div className="col-12 mt-2 p-2 bg-white rounded border border-info">
-                            <small className="text-info font-weight-bold d-block mb-1">
-                              <i className="bi bi-info-circle me-1"></i> Nueva Práctica: Define la regla de refacturación
+                        {/* Reglas de refacturación siempre visibles */}
+                        <div className="col-12 mt-2 p-2 bg-light rounded border">
+                          <small className="text-secondary font-weight-bold d-block mb-1">
+                            <i className="bi bi-gear-fill me-1"></i> Reglas de Refacturación para Obra Social
                             </small>
                             <div className="row g-2">
                               <div className="col-7">
@@ -204,8 +257,6 @@ const CrearTurnoModal = ({ show, onHide, paciente, tratamientos, onSave }) => {
                               </div>
                             </div>
                           </div>
-                        )}
-
                         <div className="col-6">
                           <input type="text" className="form-control form-control-sm" placeholder="Pieza (ej. 18)" value={piezaDental} onChange={(e) => setPiezaDental(e.target.value)} />
                         </div>
@@ -216,15 +267,6 @@ const CrearTurnoModal = ({ show, onHide, paciente, tratamientos, onSave }) => {
                     </div>
                   </div>
 
-                  <div className="col-12 col-sm-8">
-                    <label className="form-label font-weight-bold">Plan de Tratamiento</label>
-                    <select className="form-select" {...register('tratamientoId')} disabled={cargando}>
-                      <option value="">General / Sin plan asignado</option>
-                      {tratamientos && tratamientos.map(t => (
-                        <option key={t.id} value={t.id}>{t.nombre}</option>
-                      ))}
-                    </select>
-                  </div>
 
                   <div className="col-12 col-sm-4">
                     <label className="form-label font-weight-bold">Duración</label>

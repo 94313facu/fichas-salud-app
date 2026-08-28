@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Turno, Paciente, Tratamiento } = require('../models');
+const { Turno, Paciente } = require('../models');
 const authMiddleware = require('../middlewares/authMiddleware');
 const {
   crearEventoCalendar,
@@ -21,10 +21,6 @@ router.get('/', async (req, res) => {
         {
           model: Paciente,
           attributes: ['id', 'nombre', 'telefono', 'emailContact']
-        },
-        {
-          model: Tratamiento,
-          attributes: ['id', 'nombre']
         }
       ],
       order: [['fechaHora', 'ASC']]
@@ -41,7 +37,7 @@ router.get('/', async (req, res) => {
 // Registrar un nuevo turno y sincronizar en Google Calendar si está vinculado
 router.post('/', async (req, res) => {
   try {
-    const { pacienteId, tratamientoId, fechaHora, duracionMinutos, notas, estado } = req.body;
+    const { pacienteId, fechaHora, duracionMinutos, notas, estado } = req.body;
 
     if (!pacienteId || !fechaHora) {
       return res.status(400).json({ mensaje: 'El paciente y la fecha/hora son obligatorios.' });
@@ -56,19 +52,10 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ mensaje: 'Paciente no encontrado o sin permisos.' });
     }
 
-    // Verificar tratamiento si se envió
-    let tratamiento = null;
-    if (tratamientoId) {
-      tratamiento = await Tratamiento.findOne({
-        where: { id: tratamientoId, pacienteId: paciente.id }
-      });
-    }
-
     // Crear registro local del turno
     const nuevoTurno = await Turno.create({
       pacienteId: paciente.id,
       profesionalId: req.user.id,
-      tratamientoId: tratamiento ? tratamiento.id : null,
       fechaHora: new Date(fechaHora),
       duracionMinutos: parseInt(duracionMinutos) || 30,
       notas: notas ? notas.trim() : null,
@@ -76,11 +63,10 @@ router.post('/', async (req, res) => {
     });
 
     // Intentar sincronizar con Google Calendar
-    const googleEventId = await crearEventoCalendar(
+    const googleEventId = await syncTurnoToGoogleCalendar(
       req.user.id,
       nuevoTurno,
-      paciente.nombre,
-      tratamiento ? tratamiento.nombre : ''
+      paciente.nombre
     );
 
     if (googleEventId) {
@@ -91,8 +77,7 @@ router.post('/', async (req, res) => {
     // Retornar turno creado con includes
     const turnoCompleto = await Turno.findByPk(nuevoTurno.id, {
       include: [
-        { model: Paciente, attributes: ['id', 'nombre', 'telefono', 'emailContact'] },
-        { model: Tratamiento, attributes: ['id', 'nombre'] }
+        { model: Paciente, attributes: ['id', 'nombre', 'telefono', 'emailContact'] }
       ]
     });
 
@@ -108,7 +93,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { pacienteId, tratamientoId, fechaHora, duracionMinutos, notas, estado } = req.body;
+    const { pacienteId, fechaHora, duracionMinutos, notas, estado } = req.body;
 
     const turno = await Turno.findOne({
       where: { id, profesionalId: req.user.id }
@@ -119,8 +104,6 @@ router.put('/:id', async (req, res) => {
     }
 
     let pacienteNombre = '';
-    let tratamientoNombre = '';
-
     if (pacienteId) {
       const paciente = await Paciente.findOne({
         where: { id: pacienteId, profesionalId: req.user.id }
@@ -128,16 +111,6 @@ router.put('/:id', async (req, res) => {
       if (paciente) {
         turno.pacienteId = paciente.id;
         pacienteNombre = paciente.nombre;
-      }
-    }
-
-    if (tratamientoId) {
-      const tratamiento = await Tratamiento.findOne({
-        where: { id: tratamientoId }
-      });
-      if (tratamiento) {
-        turno.tratamientoId = tratamiento.id;
-        tratamientoNombre = tratamiento.nombre;
       }
     }
 
@@ -158,15 +131,13 @@ router.put('/:id', async (req, res) => {
         req.user.id,
         turno.googleEventId,
         turno,
-        pacienteNombre,
-        tratamientoNombre
+        pacienteNombre
       );
     }
 
     const turnoActualizado = await Turno.findByPk(turno.id, {
       include: [
-        { model: Paciente, attributes: ['id', 'nombre', 'telefono', 'emailContact'] },
-        { model: Tratamiento, attributes: ['id', 'nombre'] }
+        { model: Paciente, attributes: ['id', 'nombre', 'telefono', 'emailContact'] }
       ]
     });
 

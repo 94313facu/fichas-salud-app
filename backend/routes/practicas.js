@@ -11,8 +11,18 @@ const cleanCode = (str) => (str || '').toString().replace(/[^a-zA-Z0-9]/g, '').t
 // GET /api/practicas
 router.get('/', async (req, res) => {
   try {
+    const { obraSocialId, planObraSocialId } = req.query;
+    
+    const where = { profesionalId: req.user.id };
+    if (obraSocialId !== undefined) {
+      where.obraSocialId = obraSocialId ? parseInt(obraSocialId) : null;
+    }
+    if (planObraSocialId !== undefined) {
+      where.planObraSocialId = planObraSocialId ? parseInt(planObraSocialId) : null;
+    }
+
     const practicas = await Practica.findAll({
-      where: { profesionalId: req.user.id },
+      where,
       order: [['codigo', 'ASC']]
     });
     res.json(practicas);
@@ -32,17 +42,45 @@ router.get('/buscar', async (req, res) => {
     }
 
     const searchTarget = cleanCode(codigo);
+    const { obraSocialId, planObraSocialId } = req.query;
+
     const practicas = await Practica.findAll({
       where: { profesionalId: req.user.id }
     });
 
-    const practica = practicas.find(p => cleanCode(p.codigo) === searchTarget);
+    const practicasFiltradas = practicas.filter(p => cleanCode(p.codigo) === searchTarget);
 
-    if (!practica) {
+    if (practicasFiltradas.length === 0) {
       return res.json({ existe: false });
     }
 
-    res.json({ existe: true, practica });
+    // Buscamos jerárquicamente la regla aplicable:
+    // 1. Obra Social + Plan
+    let practicaAplicable = practicasFiltradas.find(p => p.obraSocialId == obraSocialId && p.planObraSocialId == planObraSocialId);
+    
+    // 2. Solo Obra Social genérica
+    if (!practicaAplicable && obraSocialId) {
+      practicaAplicable = practicasFiltradas.find(p => p.obraSocialId == obraSocialId && !p.planObraSocialId);
+    }
+    
+    // 3. Regla global para la práctica (sin obra social)
+    if (!practicaAplicable) {
+      practicaAplicable = practicasFiltradas.find(p => !p.obraSocialId && !p.planObraSocialId);
+    }
+    
+    // 4. Si no hay global, devolvemos la primera encontrada como base de nombre
+    if (!practicaAplicable) {
+       practicaAplicable = {
+         codigo: practicasFiltradas[0].codigo,
+         nombre: practicasFiltradas[0].nombre,
+         alcance: 'paciente',
+         mesesFrecuencia: 0,
+         obraSocialId: null,
+         planObraSocialId: null
+       };
+    }
+
+    res.json({ existe: true, practica: practicaAplicable });
   } catch (error) {
     console.error('Error al buscar código de práctica:', error);
     res.status(500).json({ mensaje: 'Error al buscar el código de práctica.' });
@@ -53,7 +91,7 @@ router.get('/buscar', async (req, res) => {
 // Registrar una nueva práctica o actualizar su regla de frecuencia
 router.post('/', async (req, res) => {
   try {
-    const { codigo, nombre, alcance, mesesFrecuencia, obraSocialId } = req.body;
+    const { codigo, nombre, alcance, mesesFrecuencia, obraSocialId, planObraSocialId } = req.body;
 
     if (!codigo || !nombre) {
       return res.status(400).json({ mensaje: 'El código y el nombre de la práctica son obligatorios.' });
@@ -64,15 +102,18 @@ router.post('/', async (req, res) => {
       where: { profesionalId: req.user.id }
     });
 
-    let practica = practicas.find(p => cleanCode(p.codigo) === searchTarget);
+    let practica = practicas.find(p => 
+      cleanCode(p.codigo) === searchTarget && 
+      p.obraSocialId === (obraSocialId ? parseInt(obraSocialId) : null) &&
+      p.planObraSocialId === (planObraSocialId ? parseInt(planObraSocialId) : null)
+    );
 
     if (practica) {
       await practica.update({
         codigo: codigo.trim(),
         nombre: nombre.trim(),
         alcance: alcance || 'paciente',
-        mesesFrecuencia: parseInt(mesesFrecuencia) || 0,
-        obraSocialId: obraSocialId ? parseInt(obraSocialId) : null
+        mesesFrecuencia: parseInt(mesesFrecuencia) || 0
       });
     } else {
       practica = await Practica.create({
@@ -81,6 +122,7 @@ router.post('/', async (req, res) => {
         alcance: alcance || 'paciente',
         mesesFrecuencia: parseInt(mesesFrecuencia) || 0,
         obraSocialId: obraSocialId ? parseInt(obraSocialId) : null,
+        planObraSocialId: planObraSocialId ? parseInt(planObraSocialId) : null,
         profesionalId: req.user.id
       });
     }
@@ -117,13 +159,20 @@ router.post('/validar-frecuencia', async (req, res) => {
       return res.json({ valido: true, motivo: 'Paciente Particular / Sin Obra Social' });
     }
 
-    // 2. Buscar si existe regla de frecuencia para este código (normalizado)
+    // 2. Buscar si existe regla de frecuencia para este código (normalizado) y contexto
     const searchTarget = cleanCode(codigoPractica);
     const practicas = await Practica.findAll({
       where: { profesionalId: req.user.id }
     });
 
-    let practica = practicas.find(p => cleanCode(p.codigo) === searchTarget);
+    // Intentamos buscar la regla específica para OS y Plan, luego solo OS, luego genérica
+    let practica = practicas.find(p => cleanCode(p.codigo) === searchTarget && p.obraSocialId === paciente.obraSocialId && p.planObraSocialId === paciente.planObraSocialId);
+    if (!practica) {
+      practica = practicas.find(p => cleanCode(p.codigo) === searchTarget && p.obraSocialId === paciente.obraSocialId && p.planObraSocialId === null);
+    }
+    if (!practica) {
+      practica = practicas.find(p => cleanCode(p.codigo) === searchTarget && p.obraSocialId === null && p.planObraSocialId === null);
+    }
 
     let mesesFrecuencia = practica ? practica.mesesFrecuencia : (parseInt(mesesFrecuenciaInput) || 0);
     let alcance = practica ? practica.alcance : (alcanceInput || 'paciente');

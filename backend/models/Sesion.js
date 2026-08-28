@@ -55,6 +55,12 @@ const Sesion = sequelize.define('Sesion', {
     type: DataTypes.ENUM('obra_social', 'particular'),
     allowNull: false,
     defaultValue: 'obra_social'
+  },
+  estadoFacturacion: {
+    type: DataTypes.ENUM('pendiente', 'facturado', 'particular', 'debitado'),
+    allowNull: false,
+    defaultValue: 'pendiente',
+    comment: 'Estado del flujo de facturación externa'
   }
 }, {
   tableName: 'Sesiones',

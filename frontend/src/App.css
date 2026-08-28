@@ -156,3 +156,167 @@ h1, h2, h3, h4, h5, h6 {
 .spinner-primary {
   color: var(--primary-color);
 }
+
+/* ============================
+   MÓDULO: GESTIÓN OBRAS SOCIALES
+   ============================ */
+
+/* Status dot indicator */
+.os-status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.os-status-active {
+  background-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+
+.os-status-paused {
+  background-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+}
+
+/* OS Card */
+.os-card {
+  transition: all 0.2s ease;
+  border-left: 4px solid var(--primary-color) !important;
+}
+
+.os-card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08) !important;
+  transform: translateY(-1px);
+}
+
+.os-card-paused {
+  border-left-color: #f59e0b !important;
+  opacity: 0.85;
+}
+
+/* Portal badge */
+.os-badge-portal {
+  font-size: 0.82rem !important;
+}
+
+.bg-accent-light {
+  background-color: rgba(199, 154, 60, 0.1) !important;
+}
+
+.border-accent-subtle {
+  border-color: rgba(199, 154, 60, 0.25) !important;
+}
+
+/* Portal card */
+.os-portal-card {
+  transition: all 0.2s ease;
+}
+
+.os-portal-card:hover {
+  background-color: #f0f0f0 !important;
+}
+
+/* Plans section */
+.os-plans-section {
+  animation: slideDown 0.25s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    transform: translateY(0);
+  }
+}
+
+.os-plan-item {
+  transition: all 0.15s ease;
+}
+
+.os-plan-item:hover {
+  background-color: #e9ecef !important;
+}
+
+/* ============================
+   MÓDULO: FACTURACIÓN
+   ============================ */
+
+/* Counter cards */
+.fact-counter-card {
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.fact-counter-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
+}
+
+.fact-counter-warning {
+  border-left: 4px solid #f59e0b;
+}
+
+.fact-counter-success {
+  border-left: 4px solid #22c55e;
+}
+
+.fact-counter-primary {
+  border-left: 4px solid var(--primary-color);
+}
+
+.fact-counter-info {
+  border-left: 4px solid #06b6d4;
+}
+
+/* Session card */
+.fact-session-card {
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent !important;
+}
+
+.fact-session-card:hover {
+  border-left-color: var(--accent-color) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Portal action button */
+.fact-btn-portal {
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.fact-btn-portal:not(:disabled):hover {
+  transform: scale(1.02);
+  box-shadow: 0 3px 10px rgba(199, 154, 60, 0.3);
+}
+
+.fact-btn-portal:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Estado select */
+.fact-estado-select {
+  border-radius: 6px;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.fact-estado-select:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 0.2rem rgba(31, 78, 74, 0.15);
+}
+
+/* Facturación tab in FichaPaciente */
+.fact-tab-badge {
+  font-size: 0.72rem;
+  vertical-align: super;
+  margin-left: 4px;
+}

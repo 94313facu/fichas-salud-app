@@ -8,15 +8,17 @@ import Odontograma from './Odontograma';
 import CrearTurnoModal from './CrearTurnoModal';
 import AdvertenciaFrecuenciaModal from './AdvertenciaFrecuenciaModal';
 import practicasService from './services/practicas.service';
+import facturacionService from './services/facturacion.service';
 
 const FichaPaciente = () => {
   const { id } = useParams();
   const [paciente, setPaciente] = useState(null);
   const [obrasSociales, setObrasSociales] = useState([]);
-  const [tratamientos, setTratamientos] = useState([]);
+  const [catalogoPracticas, setCatalogoPracticas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
-  const [activeTab, setActiveTab] = useState('evoluciones'); // 'evoluciones' | 'clinica' | 'finanzas'
+  const [activeTab, setActiveTab] = useState('evoluciones'); // 'evoluciones' | 'clinica' | 'finanzas' | 'facturacion'
+  const [copiadoId, setCopiadoId] = useState(null);
 
   // Modales
   const [showEditPaciente, setShowEditPaciente] = useState(false);
@@ -26,23 +28,19 @@ const FichaPaciente = () => {
 
   // Nueva evolución
   const [notas, setNotas] = useState('');
-  const [tratamientoId, setTratamientoId] = useState(''); // Estado de Facturación y Prácticas
   const [codigoPractica, setCodigoPractica] = useState('');
   const [nombrePractica, setNombrePractica] = useState('');
+  const [isNuevaPractica, setIsNuevaPractica] = useState(false);
   const [piezaDental, setPiezaDental] = useState('');
   const [caraDental, setCaraDental] = useState('');
   const [alcanceNew, setAlcanceNew] = useState('paciente');
   const [mesesNew, setMesesNew] = useState('12');
-  const [esNuevaPractica, setEsNuevaPractica] = useState(false);
   const [validacionResult, setValidacionResult] = useState(null);
   const [showAdvertencia, setShowAdvertencia] = useState(false);
   const [presupuesto, setPresupuesto] = useState('');
   const [pago, setPago] = useState('');
   const [archivo, setArchivo] = useState(null);
   const fileInputRef = useRef(null);
-
-  // Filtros
-  const [filtroTratamientoId, setFiltroTratamientoId] = useState('');
 
   // Mensajes de confirmación
   const [mensajeExito, setMensajeExito] = useState('');
@@ -51,19 +49,14 @@ const FichaPaciente = () => {
   // Cargar detalles del paciente, obras sociales y tratamientos
   const cargarDatos = async () => {
     try {
-      const [pacienteData, obrasData, tratamientosData] = await Promise.all([
+      const [pacienteData, obrasData, practicasData] = await Promise.all([
         pacientesService.getPacienteDetail(id),
         obrasSocialesService.getObrasSociales(),
-        pacientesService.getTratamientos(id)
+        practicasService.getPracticas()
       ]);
       setPaciente(pacienteData);
       setObrasSociales(obrasData);
-      setTratamientos(tratamientosData);
-      
-      // Pre-seleccionar el tratamiento más reciente si existe
-      if (tratamientosData.length > 0 && !tratamientoId) {
-        setTratamientoId(tratamientosData[0].id);
-      }
+      setCatalogoPracticas(practicasData);
     } catch (err) {
       setErrorMsg(err.mensaje || 'Error al cargar la ficha del paciente.');
     } finally {
@@ -75,20 +68,15 @@ const FichaPaciente = () => {
     cargarDatos();
   }, [id]);
 
-  // Agregar nuevo tratamiento dinámicamente
-  const handleNuevoTratamiento = async () => {
-    const nombre = prompt('Ingresa el nombre del nuevo plan de tratamiento (ej. Fisioterapia Lumbar):');
-    if (nombre && nombre.trim()) {
-      try {
-        setErrorMsg('');
-        const nuevoT = await pacientesService.createTratamiento(id, nombre.trim());
-        setTratamientos(prev => [nuevoT, ...prev]);
-        setTratamientoId(nuevoT.id); // Pre-seleccionar
-        setMensajeExito(`Plan de tratamiento "${nuevoT.nombre}" creado.`);
-        setTimeout(() => setMensajeExito(''), 4000);
-      } catch (err) {
-        setErrorMsg(err.mensaje || 'Error al registrar el plan de tratamiento.');
-      }
+  const handleCambiarEstado = async (sesionId, nuevoEstado) => {
+    try {
+      const result = await facturacionService.updateEstadoFacturacion(sesionId, nuevoEstado);
+      setPaciente(prev => ({
+        ...prev,
+        Sesions: prev.Sesions.map(s => s.id === result.sesion.id ? { ...s, estadoFacturacion: result.sesion.estadoFacturacion, modalidadCobro: result.sesion.modalidadCobro } : s)
+      }));
+    } catch (err) {
+      setErrorMsg(err.mensaje || 'Error al cambiar estado.');
     }
   };
 
@@ -114,10 +102,6 @@ const FichaPaciente = () => {
       setErrorMsg('Debes agregar notas o un archivo para guardar la sesión.');
       return;
     }
-    if (!tratamientoId) {
-      setErrorMsg('Vincular la evolución a un plan de tratamiento es obligatorio.');
-      return;
-    }
 
     try {
       setGuardando(true);
@@ -129,9 +113,10 @@ const FichaPaciente = () => {
           codigo: codigoPractica.trim(),
           nombre: nombrePractica.trim(),
           alcance: alcanceNew,
-          mesesFrecuencia: parseInt(mesesNew) || 0
+          mesesFrecuencia: parseInt(mesesNew) || 0,
+          obraSocialId: paciente?.obraSocialId || null,
+          planObraSocialId: paciente?.planObraSocialId || null
         });
-        setEsNuevaPractica(false);
       }
 
       // 2. Ejecutar validación de frecuencia por Obra Social
@@ -172,7 +157,6 @@ const FichaPaciente = () => {
         id,
         notas,
         archivo,
-        parseInt(tratamientoId),
         presupuesto || 0,
         pago || 0,
         codigoPractica,
@@ -185,6 +169,7 @@ const FichaPaciente = () => {
       setNotas('');
       setCodigoPractica('');
       setNombrePractica('');
+      setIsNuevaPractica(false);
       setPiezaDental('');
       setCaraDental('');
       setPresupuesto('');
@@ -208,17 +193,27 @@ const FichaPaciente = () => {
   const handleCodigoChange = async (val) => {
     setCodigoPractica(val);
     if (val.trim().length >= 2) {
-      const search = await practicasService.buscarCodigo(val);
+      const search = await practicasService.buscarCodigo(val, paciente?.obraSocialId, paciente?.planObraSocialId);
       if (search.existe) {
         setNombrePractica(search.practica.nombre);
         setAlcanceNew(search.practica.alcance || 'paciente');
-        setMesesNew(search.practica.mesesFrecuencia || 0);
-        setEsNuevaPractica(false);
-      } else {
-        setEsNuevaPractica(true);
+        setMesesNew(search.practica.mesesFrecuencia !== undefined ? search.practica.mesesFrecuencia : 0);
       }
-    } else {
-      setEsNuevaPractica(false);
+    }
+  };
+
+  const handleNombreChange = async (val) => {
+    setNombrePractica(val);
+    if (val.trim().length >= 3) {
+      const practica = catalogoPracticas.find(p => p.nombre.toLowerCase() === val.trim().toLowerCase());
+      if (practica) {
+        setCodigoPractica(practica.codigo);
+        const search = await practicasService.buscarCodigo(practica.codigo, paciente?.obraSocialId, paciente?.planObraSocialId);
+        if (search.existe) {
+          setAlcanceNew(search.practica.alcance || 'paciente');
+          setMesesNew(search.practica.mesesFrecuencia !== undefined ? search.practica.mesesFrecuencia : 0);
+        }
+      }
     }
   };
 
@@ -232,6 +227,76 @@ const FichaPaciente = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // ==========================
+  // FUNCIONES DE FACTURACIÓN
+  // ==========================
+  const buildDatosFacturacion = (sesion) => {
+    const os = paciente.ObraSocial || {};
+    const portal = os.PortalFacturacion || {};
+    const plan = paciente.PlanObraSocial || {};
+
+    return {
+      pacienteNombre: paciente.nombre || '',
+      numeroAfiliado: paciente.numeroAfiliado || '',
+      planObraSocial: plan.nombre || paciente.planObraSocial || '',
+      planCodigo: plan.codigo || '',
+      obraSocial: os.nombre || '',
+      codigoPractica: sesion.codigoPractica || '',
+      nombrePractica: catalogoPracticas.find(p => p.codigo.toLowerCase() === (sesion.codigoPractica || '').toLowerCase())?.nombre || '',
+      piezaDental: sesion.piezaDental || '',
+      caraDental: sesion.caraDental || '',
+      fecha: sesion.createdAt ? new Date(sesion.createdAt).toLocaleDateString('es-AR') : '',
+      fechaISO: sesion.createdAt || '',
+      portalNombre: portal.nombre || '',
+      portalUrl: portal.url || '',
+      sesionId: sesion.id,
+      presupuesto: sesion.presupuesto || 0
+    };
+  };
+
+  const handleFacturarEnPortal = (sesion) => {
+    const datos = buildDatosFacturacion(sesion);
+
+    if (datos.portalUrl) window.open(datos.portalUrl, '_blank');
+
+    window.postMessage({ type: 'fichas-salud:datos-facturacion', payload: datos }, '*');
+    document.dispatchEvent(new CustomEvent('fichas-salud:datos-facturacion', { detail: datos }));
+    document.body.setAttribute('data-facturacion', JSON.stringify(datos));
+
+    if (!datos.portalUrl) {
+      setErrorMsg('Esta obra social no tiene un portal con URL configurada.');
+    }
+  };
+
+  const handleCopiarDatos = async (sesion) => {
+    const datos = buildDatosFacturacion(sesion);
+    const texto = [
+      `Paciente: ${datos.pacienteNombre}`,
+      `Nº Afiliado: ${datos.numeroAfiliado}`,
+      `Obra Social: ${datos.obraSocial}`,
+      `Plan: ${datos.planObraSocial}`,
+      `Código de Práctica: ${datos.codigoPractica} ${datos.nombrePractica ? `- ${datos.nombrePractica}` : ''}`,
+      datos.piezaDental ? `Pieza Dental: ${datos.piezaDental}` : null,
+      datos.caraDental ? `Cara: ${datos.caraDental}` : null,
+      `Fecha: ${datos.fecha}`
+    ].filter(Boolean).join('\n');
+
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiadoId(sesion.id);
+      setTimeout(() => setCopiadoId(null), 2000);
+    } catch {
+      const textArea = document.createElement('textarea');
+      textArea.value = texto;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiadoId(sesion.id);
+      setTimeout(() => setCopiadoId(null), 2000);
+    }
   };
 
   // Abrir modal de edición de sesión
@@ -286,9 +351,7 @@ const FichaPaciente = () => {
   const saldoGlobal = totalPresupuestoGlobal - totalCobradoGlobal;
 
   // Filtrado de sesiones para el historial clínico
-  const sesionesFiltradas = paciente.Sesions?.filter(s => 
-    !filtroTratamientoId || s.tratamientoId === parseInt(filtroTratamientoId)
-  ) || [];
+  const sesionesFiltradas = paciente.Sesions || [];
 
   // Obtener próximo turno activo del paciente
   const turnosFuturos = paciente?.Turnos?.filter(t => 
@@ -313,6 +376,7 @@ const FichaPaciente = () => {
           <span className="badge bg-light text-dark border p-2 fs-6">
             <i className="bi bi-card-checklist text-accent me-1"></i>
             {paciente.ObraSocial?.nombre || 'Particular'}
+            {paciente.PlanObraSocial ? ` - ${paciente.PlanObraSocial.nombre}` : (paciente.planObraSocial ? ` - ${paciente.planObraSocial}` : '')}
           </span>
           <button 
             className="btn btn-primary d-flex align-items-center gap-1"
@@ -371,7 +435,18 @@ const FichaPaciente = () => {
             role="tab"
             style={{ backgroundColor: 'transparent', borderBottom: activeTab === 'finanzas' ? '3px solid var(--primary-color) !important' : 'none' }}
           >
-            <i className="bi bi-currency-dollar me-1"></i> Finanzas por Plan
+            <i className="bi bi-currency-dollar me-1"></i> Finanzas por Mes
+          </button>
+        </li>
+        <li className="nav-item" role="presentation">
+          <button
+            className={`nav-link font-weight-bold fs-5 px-3 py-2 border-0 ${activeTab === 'facturacion' ? 'active text-primary border-bottom border-primary border-3' : 'text-secondary'}`}
+            onClick={() => setActiveTab('facturacion')}
+            type="button"
+            role="tab"
+            style={{ backgroundColor: 'transparent', borderBottom: activeTab === 'facturacion' ? '3px solid var(--primary-color) !important' : 'none' }}
+          >
+            <i className="bi bi-receipt-cutoff me-1"></i> Facturación <span className="badge bg-warning text-dark rounded-pill ms-1 fact-tab-badge">{(paciente.Sesions || []).filter(s => s.estadoFacturacion === 'pendiente' && s.codigoPractica && s.modalidadCobro === 'obra_social').length}</span>
           </button>
         </li>
       </ul>
@@ -387,52 +462,63 @@ const FichaPaciente = () => {
               <div className="card p-4 border-0 shadow-sm">
                 <h3 className="fs-5 mb-3" style={{ color: 'var(--primary-color)' }}>Registrar Evolución</h3>
                 
-                {/* Alerta si no hay planes de tratamiento registrados */}
-                {tratamientos.length === 0 && (
-                  <div className="alert alert-warning py-2 mb-3" style={{ fontSize: '0.95rem' }}>
-                    <i className="bi bi-exclamation-circle me-1"></i>
-                    Primero debes crear un plan de tratamiento usando el enlace de abajo.
-                  </div>
-                )}
-
                 <form onSubmit={handleGuardarSesion}>
-                  {/* Selección de Plan de Tratamiento */}
-                  <div className="mb-3">
-                    <div className="d-flex justify-content-between align-items-center mb-1">
-                      <label htmlFor="tratamientoSelect" className="form-label mb-0 font-weight-bold">
-                        Plan de tratamiento
-                      </label>
-                      <button
-                        type="button"
-                        className="btn btn-link p-0 text-accent font-weight-bold text-decoration-none"
-                        style={{ height: 'auto', fontSize: '0.9rem' }}
-                        onClick={handleNuevoTratamiento}
-                        disabled={guardando}
-                      >
-                        <i className="bi bi-plus-circle-fill me-1"></i> + Nuevo
-                      </button>
-                    </div>
-                    <select
-                      id="tratamientoSelect"
-                      className="form-select"
-                      value={tratamientoId}
-                      onChange={(e) => setTratamientoId(e.target.value)}
-                      disabled={guardando}
-                      required
-                    >
-                      <option value="">Selecciona un plan...</option>
-                      {tratamientos.map(t => (
-                        <option key={t.id} value={t.id}>{t.nombre}</option>
-                      ))}
-                    </select>
-                  </div>
-
                   {/* Código de Práctica y Facturación Odontológica */}
                   <div className="card p-3 bg-light border mb-3">
                     <h6 className="font-weight-bold text-primary mb-2" style={{ fontSize: '0.92rem' }}>
                       <i className="bi bi-tag-fill me-1"></i> Práctica y Facturación Odontológica
                     </h6>
+                    
                     <div className="row g-2">
+                      <div className="col-12 col-sm-7">
+                        <label className="form-label font-weight-bold mb-1 small">Nombre de la Práctica</label>
+                        {isNuevaPractica ? (
+                          <div className="d-flex gap-2">
+                            <input
+                              type="text"
+                              className="form-control form-control-sm"
+                              placeholder="Ej. Nueva práctica..."
+                              value={nombrePractica}
+                              onChange={(e) => setNombrePractica(e.target.value)}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary px-2"
+                              onClick={() => {
+                                setIsNuevaPractica(false);
+                                setNombrePractica('');
+                                setCodigoPractica('');
+                              }}
+                              title="Cancelar y seleccionar de la lista"
+                            >
+                              <i className="bi bi-x-lg"></i>
+                            </button>
+                          </div>
+                        ) : (
+                          <select
+                            className="form-select form-select-sm"
+                            value={nombrePractica}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '__NUEVA__') {
+                                setIsNuevaPractica(true);
+                                setNombrePractica('');
+                                setCodigoPractica('');
+                                setMesesNew(0);
+                              } else {
+                                handleNombreChange(val);
+                              }
+                            }}
+                          >
+                            <option value="">Seleccione una práctica...</option>
+                            {catalogoPracticas.filter((p, index, self) => index === self.findIndex((t) => t.nombre.toLowerCase() === p.nombre.toLowerCase())).map(p => (
+                              <option key={p.id} value={p.nombre}>{p.nombre}</option>
+                            ))}
+                            <option value="__NUEVA__" className="fw-bold text-primary">+ Crear nueva práctica...</option>
+                          </select>
+                        )}
+                      </div>
+
                       <div className="col-12 col-sm-5">
                         <label className="form-label font-weight-bold mb-1 small">Código de Práctica</label>
                         <input
@@ -442,25 +528,13 @@ const FichaPaciente = () => {
                           value={codigoPractica}
                           onChange={(e) => handleCodigoChange(e.target.value)}
                           onBlur={(e) => handleCodigoChange(e.target.value)}
+                          readOnly={!isNuevaPractica && nombrePractica !== ''}
                         />
                       </div>
-
-                      <div className="col-12 col-sm-7">
-                        <label className="form-label font-weight-bold mb-1 small">Nombre de la Práctica</label>
-                        <input
-                          type="text"
-                          className="form-control form-control-sm"
-                          placeholder="Ej. Arreglo de caries 1 cara"
-                          value={nombrePractica}
-                          onChange={(e) => setNombrePractica(e.target.value)}
-                        />
-                      </div>
-
-                      {/* Si es una práctica nueva que el profesional carga por primera vez */}
-                      {esNuevaPractica && (
-                        <div className="col-12 mt-2 p-2 bg-white rounded border border-info">
-                          <small className="text-info font-weight-bold d-block mb-1">
-                            <i className="bi bi-info-circle me-1"></i> Código Nuevo: Define las reglas de refacturación para la Obra Social
+                      {/* Reglas de refacturación siempre visibles */}
+                      <div className="col-12 mt-2 p-2 bg-light rounded border">
+                        <small className="text-secondary font-weight-bold d-block mb-1">
+                          <i className="bi bi-gear-fill me-1"></i> Reglas de Refacturación para Obra Social
                           </small>
                           <div className="row g-2">
                             <div className="col-12 col-sm-7">
@@ -487,7 +561,6 @@ const FichaPaciente = () => {
                             </div>
                           </div>
                         </div>
-                      )}
 
                       {/* Pieza y Cara Dental (Opcional) */}
                       <div className="col-6 col-sm-6 mt-2">
@@ -524,7 +597,7 @@ const FichaPaciente = () => {
                       placeholder="Escribe las notas clínicas de la sesión..."
                       value={notas}
                       onChange={(e) => setNotas(e.target.value)}
-                      disabled={guardando || !tratamientoId}
+                      disabled={guardando}
                       style={{ fontSize: '1rem', resize: 'vertical' }}
                     ></textarea>
                   </div>
@@ -542,7 +615,7 @@ const FichaPaciente = () => {
                         min="0"
                         value={presupuesto}
                         onChange={(e) => setPresupuesto(e.target.value)}
-                        disabled={guardando || !tratamientoId}
+                        disabled={guardando}
                       />
                     </div>
                     <div className="col-6">
@@ -556,7 +629,7 @@ const FichaPaciente = () => {
                         min="0"
                         value={pago}
                         onChange={(e) => setPago(e.target.value)}
-                        disabled={guardando || !tratamientoId}
+                        disabled={guardando}
                       />
                     </div>
                     {presupuesto !== '' && (
@@ -576,14 +649,14 @@ const FichaPaciente = () => {
                       accept="image/*,video/*"
                       onChange={handleFileChange}
                       ref={fileInputRef}
-                      disabled={guardando || !tratamientoId}
+                      disabled={guardando}
                     />
                   </div>
 
                   <button
                     type="submit"
                     className="btn btn-primary w-100"
-                    disabled={guardando || !tratamientoId || (!notas.trim() && !archivo)}
+                    disabled={guardando || (!notas.trim() && !archivo)}
                   >
                     {guardando ? (
                       <><span className="spinner-border spinner-border-sm me-2" role="status"></span>Guardando...</>
@@ -624,9 +697,7 @@ const FichaPaciente = () => {
                       </span>
                     </div>
 
-                    <div className="text-muted-custom small mb-1">
-                      <strong>Tratamiento:</strong> {proximoTurno.Tratamiento?.nombre || 'Consulta General'}
-                    </div>
+
                     {proximoTurno.notas && (
                       <div className="text-muted-custom small fst-italic">
                         <strong>Notas:</strong> {proximoTurno.notas}
@@ -671,29 +742,9 @@ const FichaPaciente = () => {
 
               <div className="card p-4 border-0 shadow-sm">
                 
-                {/* Cabecera de Evoluciones con Filtro por Tratamiento */}
+                {/* Cabecera de Evoluciones */}
                 <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mb-4 pb-2 border-bottom">
                   <h3 className="fs-5 mb-0" style={{ color: 'var(--primary-color)' }}>Historial Clínico</h3>
-                  
-                  {tratamientos.length > 0 && (
-                    <div className="d-flex align-items-center gap-2">
-                      <label htmlFor="filtroPlan" className="form-label mb-0 text-muted-custom font-weight-bold" style={{ fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
-                        Plan:
-                      </label>
-                      <select
-                        id="filtroPlan"
-                        className="form-select py-1 px-2"
-                        style={{ height: '36px', fontSize: '0.95rem', minWidth: '180px' }}
-                        value={filtroTratamientoId}
-                        onChange={(e) => setFiltroTratamientoId(e.target.value)}
-                      >
-                        <option value="">Todos los planes</option>
-                        {tratamientos.map(t => (
-                          <option key={t.id} value={t.id}>{t.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
                 </div>
 
                 {sesionesFiltradas.length > 0 ? (
@@ -705,6 +756,15 @@ const FichaPaciente = () => {
                             <i className="bi bi-calendar-event text-primary me-1"></i>
                             {formatearFecha(sesion.createdAt)}
                           </span>
+                          {sesion.codigoPractica && (
+                            <span className="badge bg-white text-dark border ms-2" style={{ fontSize: '0.85rem' }}>
+                              <i className="bi bi-tag me-1 text-primary"></i>Cód: <strong>{sesion.codigoPractica}</strong>
+                              <span className="ms-1 text-muted">({catalogoPracticas.find(p => p.codigo.toLowerCase() === sesion.codigoPractica.toLowerCase())?.nombre || 'Práctica no catalogada'})</span>
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="d-flex justify-content-end mb-2">
                           <button
                             className="btn btn-sm btn-outline-secondary px-2 py-1 d-flex align-items-center gap-1"
                             onClick={() => handleAbrirEditarSesion(sesion)}
@@ -714,13 +774,7 @@ const FichaPaciente = () => {
                           </button>
                         </div>
 
-                        {/* Mostrar el tratamiento al que pertenece la evolución */}
-                        <div className="mb-2 text-muted-custom" style={{ fontSize: '0.95rem' }}>
-                          <span className="badge bg-primary text-white py-1 px-2">
-                            <i className="bi bi-folder-fill me-1"></i>
-                            {sesion.Tratamiento?.nombre || 'General'}
-                          </span>
-                        </div>
+
 
                         {sesion.notas && (
                           <div className="text-dark mb-2" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
@@ -1021,126 +1075,235 @@ const FichaPaciente = () => {
               </div>
             </div>
 
-            <h3 className="fs-5 mb-4 text-dark"><i className="bi bi-folder-fill text-accent me-2"></i> Desglose por Plan de Tratamiento</h3>
+            <h3 className="fs-5 mb-4 text-dark"><i className="bi bi-calendar3 text-accent me-2"></i> Desglose Mensual</h3>
 
-            {tratamientos.length > 0 ? (
-              <div className="d-flex flex-column gap-5">
-                {tratamientos.map((t) => {
-                  // Filtrar sesiones del tratamiento actual
-                  const sesionesTratamiento = paciente.Sesions?.filter(s => s.tratamientoId === t.id) || [];
-                  const pto = sesionesTratamiento.reduce((sum, s) => sum + (parseFloat(s.presupuesto) || 0), 0);
-                  const pg = sesionesTratamiento.reduce((sum, s) => sum + (parseFloat(s.pago) || 0), 0);
-                  const sld = pto - pg;
+            {(() => {
+              const sesiones = paciente.Sesions || [];
+              if (sesiones.length === 0) {
+                return (
+                  <div className="text-center py-5 bg-light rounded border border-dashed">
+                    <i className="bi bi-cash-stack fs-1 text-muted"></i>
+                    <p className="mt-2 text-muted-custom mb-0">Registra evoluciones para visualizar las finanzas.</p>
+                  </div>
+                );
+              }
 
-                  // Calcular saldo acumulado cronológico para las filas de la tabla
-                  const sesionesOrdenadasCronologico = [...sesionesTratamiento].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-                  let acumulado = 0;
-                  const sesionesConSaldo = sesionesOrdenadasCronologico.map((s) => {
-                    const presupuestoNum = parseFloat(s.presupuesto) || 0;
-                    const pagoNum = parseFloat(s.pago) || 0;
-                    acumulado += (presupuestoNum - pagoNum);
-                    return {
-                      ...s,
-                      saldoAcumulado: acumulado
-                    };
-                  });
-                  // Ordenar de más reciente a más antigua para la vista
-                  const sesionesParaMostrar = sesionesConSaldo.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+              const grupos = {};
+              sesiones.forEach(s => {
+                const fecha = new Date(s.createdAt);
+                const key = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+                if (!grupos[key]) {
+                  const nombreMes = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(fecha);
+                  grupos[key] = {
+                    mesKey: key,
+                    nombreMes: nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1),
+                    sesiones: [],
+                    pto: 0,
+                    pg: 0
+                  };
+                }
+                grupos[key].sesiones.push(s);
+                grupos[key].pto += (parseFloat(s.presupuesto) || 0);
+                grupos[key].pg += (parseFloat(s.pago) || 0);
+              });
 
-                  return (
-                    <div key={t.id} className="border rounded p-4 bg-light shadow-sm">
-                      {/* Cabecera del Tratamiento */}
-                      <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 border-bottom pb-2 mb-3">
-                        <div>
-                          <h4 className="fs-5 mb-0 text-primary font-weight-bold">
-                            <i className="bi bi-folder-fill me-2 text-accent"></i>
-                            {t.nombre}
-                          </h4>
-                          <span className="text-muted-custom" style={{ fontSize: '0.85rem' }}>
-                            Presupuesto del plan: <strong>${pto.toFixed(2)}</strong> | Cobrado: <strong className="text-success">${pg.toFixed(2)}</strong>
+              const mesesFinanzas = Object.values(grupos).sort((a, b) => b.mesKey.localeCompare(a.mesKey));
+
+              return (
+                <div className="d-flex flex-column gap-5">
+                  {mesesFinanzas.map((m) => {
+                    const sld = m.pto - m.pg;
+                    
+                    const sesionesOrdenadasCronologico = [...m.sesiones].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                    let acumulado = 0;
+                    const sesionesConSaldo = sesionesOrdenadasCronologico.map((s) => {
+                      const presupuestoNum = parseFloat(s.presupuesto) || 0;
+                      const pagoNum = parseFloat(s.pago) || 0;
+                      acumulado += (presupuestoNum - pagoNum);
+                      return { ...s, saldoAcumulado: acumulado };
+                    });
+                    const sesionesParaMostrar = sesionesConSaldo.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+                    return (
+                      <div key={m.mesKey} className="border rounded p-4 bg-light shadow-sm">
+                        <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 border-bottom pb-2 mb-3">
+                          <div>
+                            <h4 className="fs-5 mb-0 text-primary font-weight-bold">
+                              <i className="bi bi-calendar-event me-2 text-accent"></i>
+                              {m.nombreMes}
+                            </h4>
+                            <span className="text-muted-custom" style={{ fontSize: '0.85rem' }}>
+                              Presupuesto: <strong>${m.pto.toFixed(2)}</strong> | Cobrado: <strong className="text-success">${m.pg.toFixed(2)}</strong>
+                            </span>
+                          </div>
+                          <span className={`badge p-2 fs-6 border ${sld > 0 ? 'bg-danger-light border-danger text-danger' : sld < 0 ? 'bg-warning-light border-warning text-accent' : 'bg-success-light border-success text-success'}`}>
+                            {sld > 0 ? `Saldo Pendiente: $${sld.toFixed(2)}` : sld < 0 ? `A Favor: $${Math.abs(sld).toFixed(2)}` : `Al Día ($0.00)`}
                           </span>
-                          {/* MODAL: ADVERTENCIA DE FRECUENCIA DE FACTURACIÓN */}
-      <AdvertenciaFrecuenciaModal
-        show={showAdvertencia}
-        onHide={() => setShowAdvertencia(false)}
-        resultadoValidacion={validacionResult}
-        onConfirmParticular={async () => {
-          setShowAdvertencia(false);
-          await ejecutarGuardarSesion('particular');
-        }}
-        onConfirmObraSocial={async () => {
-          setShowAdvertencia(false);
-          await ejecutarGuardarSesion('obra_social');
-        }}
-      />
-    </div>
-                        
-                        <span className={`badge p-2 fs-6 border ${sld > 0 ? 'bg-danger-light border-danger text-danger' : sld < 0 ? 'bg-warning-light border-warning text-accent' : 'bg-success-light border-success text-success'}`}>
-                          {sld > 0 ? (
-                            <>Saldo Pendiente: ${sld.toFixed(2)}</>
-                          ) : sld < 0 ? (
-                            <>A Favor: ${Math.abs(sld).toFixed(2)}</>
-                          ) : (
-                            <>Al Día ($0.00)</>
-                          )}
-                        </span>
-                      </div>
-
-                      {/* Tabla de sesiones con Saldo Acumulado */}
-                      {sesionesParaMostrar.some(s => parseFloat(s.presupuesto) > 0 || parseFloat(s.pago) > 0) ? (
-                        <div className="table-responsive">
-                          <table className="table table-hover align-middle border bg-white mb-0">
-                            <thead className="table-light">
-                              <tr>
-                                <th scope="col" className="px-3" style={{ width: '180px' }}>Fecha Sesión</th>
-                                <th scope="col">Notas de evolución</th>
-                                <th scope="col" className="text-end" style={{ width: '130px' }}>Presupuesto</th>
-                                <th scope="col" className="text-end" style={{ width: '130px' }}>Cobrado</th>
-                                <th scope="col" className="text-end" style={{ width: '170px' }}>Saldo Acumulado</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {sesionesParaMostrar.filter(s => parseFloat(s.presupuesto) > 0 || parseFloat(s.pago) > 0).map((sesion) => (
-                                <tr key={sesion.id}>
-                                  <td className="px-3 text-muted-custom">{formatearFecha(sesion.createdAt)}</td>
-                                  <td>
-                                    <div className="text-truncate" style={{ maxWidth: '280px' }}>
-                                      {sesion.notas || <em className="text-muted">Sin notas de evolución</em>}
-                                    </div>
-                                  </td>
-                                  <td className="text-end text-dark">${parseFloat(sesion.presupuesto).toFixed(2)}</td>
-                                  <td className="text-end text-success">${parseFloat(sesion.pago).toFixed(2)}</td>
-                                  <td className="text-end font-weight-bold">
-                                    {sesion.saldoAcumulado > 0 ? (
-                                      <span className="text-danger">${sesion.saldoAcumulado.toFixed(2)}</span>
-                                    ) : sesion.saldoAcumulado < 0 ? (
-                                      <span className="text-accent font-weight-bold">
-                                        +${Math.abs(sesion.saldoAcumulado).toFixed(2)} <small style={{ fontSize: '0.75rem' }}>(A favor)</small>
-                                      </span>
-                                    ) : (
-                                      <span className="text-success">$0.00</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
                         </div>
-                      ) : (
-                        <p className="text-muted-custom mb-0" style={{ fontSize: '0.95rem' }}>
-                          <i className="bi bi-info-circle me-1"></i> No se han registrado movimientos presupuestarios en este plan.
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-5 bg-light rounded border border-dashed">
-                <i className="bi bi-cash-stack fs-1 text-muted"></i>
-                <p className="mt-2 text-muted-custom mb-0">Primero crea un plan de tratamiento para registrar evoluciones y finanzas.</p>
-              </div>
-            )}
+
+                        {sesionesParaMostrar.some(s => parseFloat(s.presupuesto) > 0 || parseFloat(s.pago) > 0) ? (
+                          <div className="table-responsive">
+                            <table className="table table-hover align-middle border bg-white mb-0">
+                              <thead className="table-light">
+                                <tr>
+                                  <th scope="col" className="px-3" style={{ width: '180px' }}>Fecha Sesión</th>
+                                  <th scope="col">Notas de evolución</th>
+                                  <th scope="col" className="text-end" style={{ width: '130px' }}>Presupuesto</th>
+                                  <th scope="col" className="text-end" style={{ width: '130px' }}>Cobrado</th>
+                                  <th scope="col" className="text-end" style={{ width: '170px' }}>Saldo Acumulado</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {sesionesParaMostrar.filter(s => parseFloat(s.presupuesto) > 0 || parseFloat(s.pago) > 0).map((sesion) => (
+                                  <tr key={sesion.id}>
+                                    <td className="px-3 text-muted-custom">{formatearFecha(sesion.createdAt)}</td>
+                                    <td>
+                                      <div className="text-truncate" style={{ maxWidth: '280px' }}>
+                                        {sesion.notas || <em className="text-muted">Sin notas de evolución</em>}
+                                      </div>
+                                    </td>
+                                    <td className="text-end text-dark">${parseFloat(sesion.presupuesto).toFixed(2)}</td>
+                                    <td className="text-end text-success">${parseFloat(sesion.pago).toFixed(2)}</td>
+                                    <td className="text-end font-weight-bold">
+                                      {sesion.saldoAcumulado > 0 ? (
+                                        <span className="text-danger">${sesion.saldoAcumulado.toFixed(2)}</span>
+                                      ) : sesion.saldoAcumulado < 0 ? (
+                                        <span className="text-accent font-weight-bold">
+                                          +${Math.abs(sesion.saldoAcumulado).toFixed(2)} <small style={{ fontSize: '0.75rem' }}>(A favor)</small>
+                                        </span>
+                                      ) : (
+                                        <span className="text-success">$0.00</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="text-muted-custom mb-0" style={{ fontSize: '0.95rem' }}>
+                            <i className="bi bi-info-circle me-1"></i> No se han registrado movimientos presupuestarios en este mes.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* PESTAÑA: FACTURACIÓN (NUEVA) */}
+        {activeTab === 'facturacion' && (
+          <div className="card p-4 border-0 shadow-sm">
+            <div className="d-flex justify-content-between align-items-center mb-4">
+              <h3 className="fs-5 mb-0" style={{ color: 'var(--primary-color)' }}>
+                <i className="bi bi-receipt-cutoff me-2"></i>Prácticas Facturables
+              </h3>
+            </div>
+            
+            {(() => {
+              const sesionesFacturables = (paciente.Sesions || []).filter(s => s.codigoPractica && s.codigoPractica.trim() !== '' && s.modalidadCobro === 'obra_social');
+              
+              if (sesionesFacturables.length === 0) {
+                return (
+                  <div className="text-center py-5 bg-light rounded border border-dashed">
+                    <i className="bi bi-receipt fs-1 text-muted"></i>
+                    <p className="mt-2 text-muted-custom mb-0">No hay prácticas registradas con código para facturar.</p>
+                  </div>
+                );
+              }
+
+              const ESTADOS = {
+                pendiente: { label: 'Pendiente', bg: 'bg-warning', text: 'text-dark', icon: 'bi-clock' },
+                facturado: { label: 'Facturado', bg: 'bg-success', text: 'text-white', icon: 'bi-check-circle' },
+                particular: { label: 'Particular', bg: 'bg-info', text: 'text-white', icon: 'bi-person' },
+                debitado: { label: 'Debitado', bg: 'bg-primary', text: 'text-white', icon: 'bi-bank' }
+              };
+              
+              const portal = paciente.ObraSocial?.PortalFacturacion || {};
+
+              return (
+                <div className="d-flex flex-column gap-3">
+                  {sesionesFacturables.map(sesion => {
+                    const estadoInfo = ESTADOS[sesion.estadoFacturacion] || ESTADOS.pendiente;
+
+                    return (
+                      <div key={sesion.id} className="card border-0 shadow-sm fact-session-card bg-light border">
+                        <div className="card-body p-3">
+                          <div className="d-flex flex-column flex-lg-row justify-content-between gap-3">
+                            {/* Info principal */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                <span className={`badge ${estadoInfo.bg} ${estadoInfo.text} py-1 px-2`}>
+                                  <i className={`bi ${estadoInfo.icon} me-1`}></i>{estadoInfo.label}
+                                </span>
+                                <span className="badge bg-white text-dark border">{formatearFecha(sesion.createdAt)}</span>
+                                {sesion.Tratamiento && (
+                                  <span className="badge bg-secondary-subtle text-secondary border">
+                                    <i className="bi bi-folder2-open me-1"></i>{sesion.Tratamiento.nombre}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="d-flex flex-wrap gap-2" style={{ fontSize: '0.95rem' }}>
+                                <span className="badge bg-white text-dark border">
+                                  <i className="bi bi-tag me-1 text-primary"></i>Cód: <strong>{sesion.codigoPractica}</strong>
+                                  <span className="ms-1 text-muted">({catalogoPracticas.find(p => p.codigo.toLowerCase() === sesion.codigoPractica.toLowerCase())?.nombre || 'Práctica no catalogada'})</span>
+                                </span>
+                                {sesion.piezaDental && (
+                                  <span className="badge bg-white text-dark border">
+                                    Pieza: <strong>{sesion.piezaDental}</strong>
+                                  </span>
+                                )}
+                                {sesion.caraDental && (
+                                  <span className="badge bg-white text-dark border">
+                                    Cara: <strong>{sesion.caraDental}</strong>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Acciones */}
+                            <div className="d-flex flex-column gap-2 flex-shrink-0 fact-actions" style={{ minWidth: '220px' }}>
+                              <button
+                                className="btn btn-accent btn-sm d-flex align-items-center justify-content-center gap-1 w-100 fact-btn-portal"
+                                onClick={() => handleFacturarEnPortal(sesion)}
+                                disabled={!portal.url}
+                                title={portal.url ? `Abrir ${portal.nombre}` : 'Sin portal configurado'}
+                              >
+                                <i className="bi bi-box-arrow-up-right"></i>
+                                {portal.nombre ? `Facturar en ${portal.nombre}` : 'Sin portal'}
+                              </button>
+
+                              <button
+                                className={`btn btn-sm d-flex align-items-center justify-content-center gap-1 w-100 ${copiadoId === sesion.id ? 'btn-success' : 'btn-outline-secondary'}`}
+                                onClick={() => handleCopiarDatos(sesion)}
+                                style={{ backgroundColor: copiadoId !== sesion.id ? 'white' : undefined }}
+                              >
+                                <i className={`bi ${copiadoId === sesion.id ? 'bi-check-lg' : 'bi-clipboard'}`}></i>
+                                {copiadoId === sesion.id ? '¡Copiado!' : 'Copiar datos'}
+                              </button>
+
+                              <select
+                                className="form-select form-select-sm fact-estado-select"
+                                value={sesion.estadoFacturacion || 'pendiente'}
+                                onChange={e => handleCambiarEstado(sesion.id, e.target.value)}
+                              >
+                                {Object.entries(ESTADOS).map(([key, val]) => (
+                                  <option key={key} value={key}>{val.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1164,9 +1327,22 @@ const FichaPaciente = () => {
         }}
         pacienteId={paciente.id}
         sesion={selectedSesion}
-        tratamientos={tratamientos}
-        setTratamientos={setTratamientos}
         onSave={handleSesionGuardada}
+      />
+
+      {/* MODAL: ADVERTENCIA DE FRECUENCIA DE FACTURACIÓN */}
+      <AdvertenciaFrecuenciaModal
+        show={showAdvertencia}
+        onHide={() => setShowAdvertencia(false)}
+        resultadoValidacion={validacionResult}
+        onConfirmParticular={async () => {
+          setShowAdvertencia(false);
+          await ejecutarGuardarSesion('particular');
+        }}
+        onConfirmObraSocial={async () => {
+          setShowAdvertencia(false);
+          await ejecutarGuardarSesion('obra_social');
+        }}
       />
 
       {/* MODAL: CREAR TURNO RÁPIDO */}
@@ -1174,7 +1350,6 @@ const FichaPaciente = () => {
         show={showCrearTurno}
         onHide={() => setShowCrearTurno(false)}
         paciente={paciente}
-        tratamientos={tratamientos}
         onSave={async () => {
           await cargarDatos();
           setMensajeExito('Turno agendado y sincronizado con éxito.');
