@@ -10,6 +10,14 @@ const turnosService = {
   },
 
   /**
+   * Obtiene turnos de un mes específico con horario laboral (para el calendario)
+   */
+  async getTurnosPorMes(anio, mes) {
+    const response = await api.get(`/api/turnos/por-mes?anio=${anio}&mes=${mes}`);
+    return response.data;
+  },
+
+  /**
    * Registra un nuevo turno
    */
   async createTurno(datosTurno) {

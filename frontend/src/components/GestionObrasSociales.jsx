@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import obrasSocialesService from './services/obrasSociales.service';
+import practicasService from './services/practicas.service';
 
 const GestionObrasSociales = () => {
   const [obrasSociales, setObrasSociales] = useState([]);
   const [portales, setPortales] = useState([]);
+  const [practicas, setPracticas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [mensajeExito, setMensajeExito] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -11,7 +13,7 @@ const GestionObrasSociales = () => {
   // Modal OS
   const [showModalOS, setShowModalOS] = useState(false);
   const [editandoOS, setEditandoOS] = useState(null);
-  const [formOS, setFormOS] = useState({ nombre: '', portalFacturacionId: '', notas: '' });
+  const [formOS, setFormOS] = useState({ nombre: '', portalFacturacionId: '', notas: '', limitePracticasMensual: '', limitePracticasAnual: '' });
 
   // Modal Portal
   const [showModalPortal, setShowModalPortal] = useState(false);
@@ -23,6 +25,11 @@ const GestionObrasSociales = () => {
   const [editandoPlan, setEditandoPlan] = useState(null);
   const [planOSId, setPlanOSId] = useState(null);
   const [formPlan, setFormPlan] = useState({ nombre: '', codigo: '' });
+
+  // Modal Practica
+  const [showModalPractica, setShowModalPractica] = useState(false);
+  const [practicaOSId, setPracticaOSId] = useState(null);
+  const [formPractica, setFormPractica] = useState({ codigo: '', nombre: '', alcance: 'paciente', mesesFrecuencia: '' });
 
   // OS expandida (para ver planes)
   const [expandedOS, setExpandedOS] = useState(null);
@@ -36,12 +43,14 @@ const GestionObrasSociales = () => {
   const cargarDatos = async () => {
     try {
       setCargando(true);
-      const [obrasData, portalesData] = await Promise.all([
+      const [obrasData, portalesData, practicasData] = await Promise.all([
         obrasSocialesService.getObrasSociales(),
-        obrasSocialesService.getPortales()
+        obrasSocialesService.getPortales(),
+        practicasService.getPracticas()
       ]);
       setObrasSociales(obrasData);
       setPortales(portalesData);
+      setPracticas(practicasData);
     } catch (err) {
       setErrorMsg(err.mensaje || 'Error al cargar los datos.');
     } finally {
@@ -129,8 +138,14 @@ const GestionObrasSociales = () => {
   const handleAbrirModalOS = (os = null) => {
     setEditandoOS(os);
     setFormOS(os
-      ? { nombre: os.nombre, portalFacturacionId: os.portalFacturacionId || '', notas: os.notas || '' }
-      : { nombre: '', portalFacturacionId: '', notas: '' }
+      ? { 
+          nombre: os.nombre, 
+          portalFacturacionId: os.portalFacturacionId || '', 
+          notas: os.notas || '',
+          limitePracticasMensual: os.limitePracticasMensual || '',
+          limitePracticasAnual: os.limitePracticasAnual || ''
+        }
+      : { nombre: '', portalFacturacionId: '', notas: '', limitePracticasMensual: '', limitePracticasAnual: '' }
     );
     setShowModalOS(true);
     setErrorMsg('');
@@ -146,7 +161,9 @@ const GestionObrasSociales = () => {
       const payload = {
         nombre: formOS.nombre.trim(),
         portalFacturacionId: formOS.portalFacturacionId ? parseInt(formOS.portalFacturacionId) : null,
-        notas: formOS.notas.trim() || null
+        notas: formOS.notas.trim() || null,
+        limitePracticasMensual: formOS.limitePracticasMensual ? parseInt(formOS.limitePracticasMensual) : null,
+        limitePracticasAnual: formOS.limitePracticasAnual ? parseInt(formOS.limitePracticasAnual) : null
       };
       if (editandoOS) {
         await obrasSocialesService.updateObraSocial(editandoOS.id, payload);
@@ -223,6 +240,49 @@ const GestionObrasSociales = () => {
       await cargarDatos();
     } catch (err) {
       setErrorMsg(err.mensaje || 'Error al eliminar el plan.');
+    }
+  };
+
+  // ========================
+  // PRACTICAS CRUD (Restricciones)
+  // ========================
+  const handleAbrirModalPractica = (obraSocialId) => {
+    setPracticaOSId(obraSocialId);
+    setFormPractica({ codigo: '', nombre: '', alcance: 'paciente', mesesFrecuencia: '' });
+    setShowModalPractica(true);
+    setErrorMsg('');
+  };
+
+  const handleGuardarPractica = async () => {
+    if (!formPractica.codigo.trim() || !formPractica.nombre.trim()) {
+      setErrorMsg('Código y nombre son obligatorios.');
+      return;
+    }
+    try {
+      setErrorMsg('');
+      await practicasService.savePractica({
+        codigo: formPractica.codigo.trim(),
+        nombre: formPractica.nombre.trim(),
+        alcance: formPractica.alcance,
+        mesesFrecuencia: parseInt(formPractica.mesesFrecuencia) || 0,
+        obraSocialId: practicaOSId
+      });
+      showExito('Restricción de práctica guardada.');
+      setShowModalPractica(false);
+      await cargarDatos();
+    } catch (err) {
+      setErrorMsg(err.mensaje || 'Error al guardar la práctica.');
+    }
+  };
+
+  const handleEliminarPractica = async (practicaId) => {
+    if (!window.confirm('¿Eliminar esta restricción?')) return;
+    try {
+      await practicasService.deletePractica(practicaId);
+      showExito('Restricción eliminada.');
+      await cargarDatos();
+    } catch (err) {
+      setErrorMsg(err.mensaje || 'Error al eliminar.');
     }
   };
 
@@ -404,46 +464,100 @@ const GestionObrasSociales = () => {
                 {/* Planes expandidos */}
                 {expandedOS === os.id && (
                   <div className="mt-3 pt-3 border-top os-plans-section">
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                      <h6 className="mb-0 fw-bold text-primary" style={{ fontSize: '0.95rem' }}>
-                        <i className="bi bi-list-ul me-1"></i>Planes de {os.nombre}
-                      </h6>
-                      <button
-                        className="btn btn-sm btn-outline-primary px-2 py-1 d-flex align-items-center gap-1"
-                        onClick={() => handleAbrirModalPlan(os.id)}
-                      >
-                        <i className="bi bi-plus-lg"></i> Agregar Plan
-                      </button>
-                    </div>
+                    <div className="row">
+                      <div className="col-12 col-md-6 mb-3 mb-md-0">
+                        {/* SECCIÓN PLANES */}
+                        <div className="d-flex justify-content-between align-items-center mb-3">
+                          <h6 className="mb-0 fw-bold text-primary" style={{ fontSize: '0.95rem' }}>
+                            <i className="bi bi-list-ul me-1"></i>Planes
+                          </h6>
+                          <button
+                            className="btn btn-sm btn-outline-primary px-2 py-1 d-flex align-items-center gap-1"
+                            onClick={() => handleAbrirModalPlan(os.id)}
+                          >
+                            <i className="bi bi-plus-lg"></i> Agregar Plan
+                          </button>
+                        </div>
 
-                    {(!os.PlanObraSocials || os.PlanObraSocials.length === 0) ? (
-                      <div className="text-center py-3 bg-light rounded border text-muted-custom">
-                        <i className="bi bi-clipboard-x me-1"></i> Sin planes definidos.
-                      </div>
-                    ) : (
-                      <div className="d-flex flex-column gap-2">
-                        {os.PlanObraSocials.map(plan => (
-                          <div key={plan.id} className="d-flex justify-content-between align-items-center p-2 bg-light rounded border os-plan-item">
-                            <div>
-                              <span className="fw-bold text-dark">{plan.nombre}</span>
-                              {plan.codigo && (
-                                <span className="badge bg-white text-muted border ms-2" style={{ fontSize: '0.78rem' }}>
-                                  Cód: {plan.codigo}
-                                </span>
-                              )}
-                            </div>
-                            <div className="d-flex gap-1">
-                              <button className="btn btn-sm btn-outline-secondary px-2 py-0" onClick={() => handleAbrirModalPlan(os.id, plan)} title="Editar plan">
-                                <i className="bi bi-pencil" style={{ fontSize: '0.78rem' }}></i>
-                              </button>
-                              <button className="btn btn-sm btn-outline-danger px-2 py-0" onClick={() => handleEliminarPlan(os.id, plan.id)} title="Eliminar plan">
-                                <i className="bi bi-trash" style={{ fontSize: '0.78rem' }}></i>
-                              </button>
-                            </div>
+                        {(!os.PlanObraSocials || os.PlanObraSocials.length === 0) ? (
+                          <div className="text-center py-3 bg-light rounded border text-muted-custom">
+                            <i className="bi bi-clipboard-x me-1"></i> Sin planes definidos.
                           </div>
-                        ))}
+                        ) : (
+                          <div className="d-flex flex-column gap-2">
+                            {os.PlanObraSocials.map(plan => (
+                              <div key={plan.id} className="d-flex justify-content-between align-items-center p-2 bg-light rounded border os-plan-item">
+                                <div>
+                                  <span className="fw-bold text-dark">{plan.nombre}</span>
+                                  {plan.codigo && (
+                                    <span className="badge bg-white text-muted border ms-2" style={{ fontSize: '0.78rem' }}>
+                                      Cód: {plan.codigo}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="d-flex gap-1">
+                                  <button className="btn btn-sm btn-outline-secondary px-2 py-0" onClick={() => handleAbrirModalPlan(os.id, plan)} title="Editar plan">
+                                    <i className="bi bi-pencil" style={{ fontSize: '0.78rem' }}></i>
+                                  </button>
+                                  <button className="btn btn-sm btn-outline-danger px-2 py-0" onClick={() => handleEliminarPlan(os.id, plan.id)} title="Eliminar plan">
+                                    <i className="bi bi-trash" style={{ fontSize: '0.78rem' }}></i>
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
+
+                      <div className="col-12 col-md-6 border-md-start ps-md-3">
+                        {/* SECCIÓN RESTRICCIONES DE PRÁCTICAS */}
+                        <div className="d-flex justify-content-between align-items-center mb-3">
+                          <h6 className="mb-0 fw-bold text-danger" style={{ fontSize: '0.95rem' }}>
+                            <i className="bi bi-slash-circle me-1"></i>Restricciones
+                          </h6>
+                          <button
+                            className="btn btn-sm btn-outline-danger px-2 py-1 d-flex align-items-center gap-1"
+                            onClick={() => handleAbrirModalPractica(os.id)}
+                          >
+                            <i className="bi bi-plus-lg"></i> Agregar Restricción
+                          </button>
+                        </div>
+                        
+                        {(() => {
+                          const pracsOS = practicas.filter(p => p.obraSocialId === os.id);
+                          if (pracsOS.length === 0) {
+                            return (
+                              <div className="text-center py-3 bg-light rounded border text-muted-custom">
+                                <i className="bi bi-check-circle me-1"></i> Sin restricciones configuradas.
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="d-flex flex-column gap-2">
+                              {pracsOS.map(p => (
+                                <div key={p.id} className="p-2 bg-light rounded border" style={{ fontSize: '0.85rem' }}>
+                                  <div className="d-flex justify-content-between align-items-center">
+                                    <div>
+                                      <span className="fw-bold text-dark me-2">{p.codigo}</span>
+                                      <span className="text-muted">{p.nombre}</span>
+                                    </div>
+                                    <button className="btn btn-sm btn-link text-danger p-0 m-0" onClick={() => handleEliminarPractica(p.id)}>
+                                      <i className="bi bi-trash"></i>
+                                    </button>
+                                  </div>
+                                  <div className="mt-1 d-flex gap-2">
+                                    <span className="badge bg-white text-secondary border">Alcance: {p.alcance}</span>
+                                    {p.mesesFrecuencia > 0 && (
+                                      <span className="badge bg-white text-danger border">Frec: {p.mesesFrecuencia} meses</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -533,6 +647,31 @@ const GestionObrasSociales = () => {
                     </button>
                   </div>
                 )}
+
+                <div className="row g-2 mb-3">
+                  <div className="col-6">
+                    <label className="form-label fw-bold">Límite Mensual</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Ej. 2"
+                      value={formOS.limitePracticasMensual}
+                      onChange={e => setFormOS({ ...formOS, limitePracticasMensual: e.target.value })}
+                    />
+                    <small className="text-muted" style={{ fontSize: '0.75rem' }}>Prácticas max. por mes</small>
+                  </div>
+                  <div className="col-6">
+                    <label className="form-label fw-bold">Límite Anual</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Ej. 10"
+                      value={formOS.limitePracticasAnual}
+                      onChange={e => setFormOS({ ...formOS, limitePracticasAnual: e.target.value })}
+                    />
+                    <small className="text-muted" style={{ fontSize: '0.75rem' }}>Prácticas max. por año</small>
+                  </div>
+                </div>
 
                 <div className="mb-3">
                   <label className="form-label fw-bold">Notas internas</label>
@@ -642,6 +781,78 @@ const GestionObrasSociales = () => {
                 <button className="btn btn-secondary btn-sm" onClick={() => setShowModalPlan(false)}>Cancelar</button>
                 <button className="btn btn-primary btn-sm" onClick={handleGuardarPlan}>
                   <i className="bi bi-check-lg me-1"></i> {editandoPlan ? 'Guardar' : 'Crear Plan'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ MODAL: PRACTICA (RESTRICCION) ============ */}
+      {showModalPractica && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowModalPractica(false)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px' }}>
+              <div className="modal-header border-bottom-0 pb-0">
+                <h5 className="modal-title text-danger fw-bold" style={{ fontSize: '1rem' }}>
+                  <i className="bi bi-slash-circle me-2"></i>
+                  Nueva Restricción
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setShowModalPractica(false)}></button>
+              </div>
+              <div className="modal-body pt-3">
+                <div className="row g-2 mb-3">
+                  <div className="col-4">
+                    <label className="form-label fw-bold small">Código *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. 02.01"
+                      value={formPractica.codigo}
+                      onChange={e => setFormPractica({ ...formPractica, codigo: e.target.value })}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="col-8">
+                    <label className="form-label fw-bold small">Nombre / Descripción *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Nombre de la práctica"
+                      value={formPractica.nombre}
+                      onChange={e => setFormPractica({ ...formPractica, nombre: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="row g-2 mb-3">
+                  <div className="col-8">
+                    <label className="form-label fw-bold small">Alcance de Restricción</label>
+                    <select
+                      className="form-select"
+                      value={formPractica.alcance}
+                      onChange={e => setFormPractica({ ...formPractica, alcance: e.target.value })}
+                    >
+                      <option value="paciente">Por Paciente (global)</option>
+                      <option value="diente">Por Diente / Pieza Dental</option>
+                      <option value="cara">Por Cara del Diente</option>
+                    </select>
+                  </div>
+                  <div className="col-4">
+                    <label className="form-label fw-bold small">Frec. (Meses)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Ej. 12"
+                      value={formPractica.mesesFrecuencia}
+                      onChange={e => setFormPractica({ ...formPractica, mesesFrecuencia: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer border-top-0">
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowModalPractica(false)}>Cancelar</button>
+                <button className="btn btn-danger btn-sm" onClick={handleGuardarPractica}>
+                  <i className="bi bi-check-lg me-1"></i> Guardar Restricción
                 </button>
               </div>
             </div>

@@ -61,8 +61,33 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
     }
   }, [show]);
 
-  // Cascada OS → Plan
-  const [planesDisponibles, setPlanesDisponibles] = useState([]);
+  // Manejo de múltiples Obras Sociales
+  const [obrasSocialesPaciente, setObrasSocialesPaciente] = useState([]);
+  
+  const agregarObraSocial = () => {
+    setObrasSocialesPaciente([...obrasSocialesPaciente, { idLocal: Date.now(), obraSocialId: '', planObraSocialId: '', numeroAfiliado: '', activa: true }]);
+  };
+
+  const quitarObraSocial = (idLocal) => {
+    setObrasSocialesPaciente(obrasSocialesPaciente.filter(os => os.idLocal !== idLocal));
+  };
+
+  const updateObraSocial = (idLocal, campo, valor) => {
+    setObrasSocialesPaciente(obrasSocialesPaciente.map(os => {
+      if (os.idLocal === idLocal) {
+        const updated = { ...os, [campo]: valor };
+        if (campo === 'obraSocialId') {
+          updated.planObraSocialId = ''; // Resetear plan al cambiar OS
+          loadPlanes(valor);
+        }
+        return updated;
+      }
+      return os;
+    }));
+  };
+
+  // Caché de planes por OS
+  const [planesPorObraSocial, setPlanesPorObraSocial] = useState({});
   const [cargandoPlanes, setCargandoPlanes] = useState(false);
 
   // Estado local para agregar plan dinámicamente
@@ -70,6 +95,7 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
   const [nuevoPlanNombre, setNuevoPlanNombre] = useState('');
   const [nuevoPlanCodigo, setNuevoPlanCodigo] = useState('');
   const [creandoPlan, setCreandoPlan] = useState(false);
+  const [osIdParaNuevoPlan, setOsIdParaNuevoPlan] = useState(null);
 
   // Checkboxes de afecciones
   const [afeccionesState, setAfeccionesState] = useState({});
@@ -82,27 +108,16 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
   };
 
   const loadPlanes = async (osId) => {
-    if (!osId) {
-      setPlanesDisponibles([]);
-      return;
-    }
+    if (!osId || planesPorObraSocial[osId]) return;
     try {
       setCargandoPlanes(true);
       const planes = await obrasSocialesService.getPlanes(osId);
-      setPlanesDisponibles(planes);
+      setPlanesPorObraSocial(prev => ({ ...prev, [osId]: planes }));
     } catch {
-      setPlanesDisponibles([]);
+      setPlanesPorObraSocial(prev => ({ ...prev, [osId]: [] }));
     } finally {
       setCargandoPlanes(false);
     }
-  };
-
-  const handleOSChange = (e) => {
-    const osId = e.target.value;
-    setValue('obraSocialId', osId);
-    setValue('planObraSocialId', '');
-    setValue('planObraSocial', '');
-    loadPlanes(osId);
   };
 
   const handleCrearPortal = async () => {
@@ -144,10 +159,19 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
       if (typeof setObrasSociales === 'function') {
         setObrasSociales([...obrasSociales, creada]);
       }
-      setValue('obraSocialId', creada.id);
       setNuevaObraNombre('');
       setNuevoPortalId('');
       setMostrarNuevaObra(false);
+      
+      // Auto-agregar esta OS nueva a la lista del paciente
+      const nuevaOsLocalId = Date.now();
+      setObrasSocialesPaciente([...obrasSocialesPaciente, { 
+        idLocal: nuevaOsLocalId, 
+        obraSocialId: creada.id, 
+        planObraSocialId: '', 
+        numeroAfiliado: '', 
+        activa: true 
+      }]);
       loadPlanes(creada.id);
     } catch (err) {
       setErrorObra(err.mensaje || 'Error al crear la obra social.');
@@ -157,11 +181,8 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
   };
 
   const handleCrearPlanInline = async () => {
-    const osId = getValues('obraSocialId');
-    if (!osId) {
-      setErrorObra('Debe seleccionar una Obra Social primero.');
-      return;
-    }
+    if (!osIdParaNuevoPlan) return;
+    
     if (!nuevoPlanNombre || nuevoPlanNombre.trim() === '') {
       setErrorObra('El nombre del plan es obligatorio.');
       return;
@@ -169,15 +190,21 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
     try {
       setCreandoPlan(true);
       setErrorObra('');
-      const creado = await obrasSocialesService.createPlan(osId, {
+      const creado = await obrasSocialesService.createPlan(osIdParaNuevoPlan, {
         nombre: nuevoPlanNombre.trim(),
         codigo: nuevoPlanCodigo.trim()
       });
-      setPlanesDisponibles([...planesDisponibles, creado]);
-      setValue('planObraSocialId', creado.id);
+      
+      const planesActuales = planesPorObraSocial[osIdParaNuevoPlan] || [];
+      setPlanesPorObraSocial({
+        ...planesPorObraSocial,
+        [osIdParaNuevoPlan]: [...planesActuales, creado]
+      });
+      
       setNuevoPlanNombre('');
       setNuevoPlanCodigo('');
       setMostrarNuevoPlan(false);
+      setOsIdParaNuevoPlan(null);
     } catch (err) {
       setErrorObra(err.mensaje || 'Error al crear el plan.');
     } finally {
@@ -193,14 +220,19 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
       const pacientePayload = {
         ...data,
         afecciones: afeccionesState,
-        obraSocialId: data.obraSocialId ? parseInt(data.obraSocialId) : null,
-        planObraSocialId: data.planObraSocialId ? parseInt(data.planObraSocialId) : null
+        obrasSociales: obrasSocialesPaciente.filter(os => os.obraSocialId).map(os => ({
+          obraSocialId: os.obraSocialId,
+          planObraSocialId: os.planObraSocialId || null,
+          numeroAfiliado: os.numeroAfiliado || null,
+          activa: true
+        }))
       };
 
       const nuevoPaciente = await pacientesService.createPaciente(pacientePayload);
       
       reset();
       setAfeccionesState({});
+      setObrasSocialesPaciente([]);
       setTabActiva('datos');
       onSave(nuevoPaciente);
       onHide();
@@ -418,32 +450,108 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
 
                   {/* COBERTURA Y EMERGENCIAS */}
                   <div className="col-12 mt-4">
-                    <h6 className="font-weight-bold text-primary border-bottom pb-2">
-                      <i className="bi bi-shield-plus me-1"></i> Cobertura Médica y Servicios de Emergencia
-                    </h6>
-                  </div>
-
-                  <div className="col-12 col-sm-6">
-                    <label className="form-label font-weight-bold">Obra Social</label>
-                    <div className="d-flex gap-2">
-                      <select className="form-select" {...register('obraSocialId')} onChange={handleOSChange} disabled={cargando}>
-                        <option value="">Particular / Sin Obra Social</option>
-                        {obrasSociales.map((os) => (
-                          <option key={os.id} value={os.id}>{os.nombre}{!os.activa ? ' (Pausada)' : ''}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="btn btn-outline-accent text-nowrap"
-                        onClick={() => setMostrarNuevaObra(!mostrarNuevaObra)}
-                      >
-                        <i className="bi bi-plus-lg"></i>
+                    <div className="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                      <h6 className="font-weight-bold text-primary m-0">
+                        <i className="bi bi-shield-plus me-1"></i> Cobertura Médica
+                      </h6>
+                      <button type="button" className="btn btn-sm btn-outline-primary" onClick={agregarObraSocial}>
+                        <i className="bi bi-plus-circle me-1"></i> Agregar Cobertura
                       </button>
                     </div>
+                  </div>
 
-                    {mostrarNuevaObra && (
-                      <div className="card p-3 mt-2 bg-light border shadow-sm">
-                        <h6 className="font-weight-bold text-accent mb-3" style={{ fontSize: '0.9rem' }}>Nueva Obra Social</h6>
+                  {obrasSocialesPaciente.length === 0 ? (
+                    <div className="col-12">
+                      <div className="alert alert-secondary text-center py-2 mb-0">
+                        <i className="bi bi-info-circle me-2"></i> El paciente será registrado como <strong>Particular / Sin Obra Social</strong>. Utilice el botón superior para agregar una cobertura.
+                      </div>
+                    </div>
+                  ) : (
+                    obrasSocialesPaciente.map((osPaciente, index) => (
+                      <div key={osPaciente.idLocal} className="col-12 mb-3">
+                        <div className="card border-0 shadow-sm bg-light">
+                          <div className="card-body p-3">
+                            <div className="d-flex justify-content-between align-items-center mb-2">
+                              <span className="badge bg-secondary">Cobertura {index + 1}</span>
+                              <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => quitarObraSocial(osPaciente.idLocal)}>
+                                <i className="bi bi-trash"></i>
+                              </button>
+                            </div>
+                            <div className="row g-2">
+                              <div className="col-12 col-md-4">
+                                <label className="form-label small font-weight-bold">Obra Social</label>
+                                <select 
+                                  className="form-select form-select-sm" 
+                                  value={osPaciente.obraSocialId} 
+                                  onChange={(e) => updateObraSocial(osPaciente.idLocal, 'obraSocialId', e.target.value)}
+                                  disabled={cargando}
+                                >
+                                  <option value="">Seleccione...</option>
+                                  {obrasSociales.map((os) => (
+                                    <option key={os.id} value={os.id}>{os.nombre}{!os.activa ? ' (Pausada)' : ''}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="col-12 col-md-4">
+                                <label className="form-label small font-weight-bold">Plan</label>
+                                <div className="d-flex gap-1">
+                                  <select 
+                                    className="form-select form-select-sm" 
+                                    value={osPaciente.planObraSocialId}
+                                    onChange={(e) => updateObraSocial(osPaciente.idLocal, 'planObraSocialId', e.target.value)}
+                                    disabled={cargando || cargandoPlanes || !osPaciente.obraSocialId}
+                                  >
+                                    <option value="">— Sin plan —</option>
+                                    {(planesPorObraSocial[osPaciente.obraSocialId] || []).map(p => (
+                                      <option key={p.id} value={p.id}>{p.nombre}{p.codigo ? ` (${p.codigo})` : ''}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline-accent btn-sm text-nowrap"
+                                    onClick={() => { setOsIdParaNuevoPlan(osPaciente.obraSocialId); setMostrarNuevoPlan(true); }}
+                                    disabled={!osPaciente.obraSocialId}
+                                    title="Nuevo plan"
+                                  >
+                                    <i className="bi bi-plus"></i>
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="col-12 col-md-4">
+                                <label className="form-label small font-weight-bold">Nº de Afiliado</label>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  placeholder="Ej. 12345678/01"
+                                  value={osPaciente.numeroAfiliado}
+                                  onChange={(e) => updateObraSocial(osPaciente.idLocal, 'numeroAfiliado', e.target.value)}
+                                  disabled={cargando}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+
+                  <div className="col-12 text-center my-2">
+                    <button
+                      type="button"
+                      className="btn btn-link text-decoration-none"
+                      onClick={() => setMostrarNuevaObra(!mostrarNuevaObra)}
+                    >
+                      ¿La Obra Social no está en la lista? Creala aquí
+                    </button>
+                  </div>
+
+                  {mostrarNuevaObra && (
+                    <div className="col-12">
+                      <div className="card p-3 bg-light border shadow-sm">
+                        <div className="d-flex justify-content-between align-items-center mb-3">
+                          <h6 className="font-weight-bold text-accent m-0" style={{ fontSize: '0.9rem' }}>Nueva Obra Social Global</h6>
+                          <button type="button" className="btn-close" onClick={() => setMostrarNuevaObra(false)}></button>
+                        </div>
                         <div className="mb-2">
                           <label className="form-label small font-weight-bold mb-1">Nombre</label>
                           <input
@@ -456,7 +564,7 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
                         </div>
                         
                         <div className="mb-3">
-                          <label className="form-label small font-weight-bold mb-1">Portal de Facturación</label>
+                          <label className="form-label small font-weight-bold mb-1">Portal de Facturación (Opcional)</label>
                           <div className="d-flex gap-2">
                             <select className="form-select form-select-sm" value={nuevoPortalId} onChange={e => setNuevoPortalId(e.target.value)}>
                               <option value="">— Sin portal —</option>
@@ -514,80 +622,43 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
                         </button>
                         {errorObra && <small className="text-danger mt-2 d-block">{errorObra}</small>}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  <div className="col-12 col-sm-3">
-                    <label className="form-label font-weight-bold">Nº de Afiliado</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Ej. 12345678/01"
-                      {...register('numeroAfiliado')}
-                      disabled={cargando}
-                    />
-                  </div>
-
-                  <div className="col-12 col-sm-3">
-                    <label className="form-label font-weight-bold">Plan</label>
-                    {planesDisponibles.length > 0 || getValues('obraSocialId') ? (
-                      <div>
-                        <div className="d-flex gap-2">
-                          <select className="form-select" {...register('planObraSocialId')} disabled={cargando || cargandoPlanes}>
-                            <option value="">— Sin plan —</option>
-                            {planesDisponibles.map(p => (
-                              <option key={p.id} value={p.id}>{p.nombre}{p.codigo ? ` (${p.codigo})` : ''}</option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="btn btn-outline-accent text-nowrap"
-                            onClick={() => setMostrarNuevoPlan(!mostrarNuevoPlan)}
-                            disabled={!getValues('obraSocialId')}
-                            title="Nuevo plan"
-                          >
-                            <i className="bi bi-plus-lg"></i>
-                          </button>
+                  {mostrarNuevoPlan && (
+                    <div className="col-12 mt-2">
+                      <div className="card p-3 bg-light border shadow-sm border-accent">
+                        <div className="d-flex justify-content-between align-items-center mb-2">
+                          <h6 className="font-weight-bold text-accent m-0" style={{ fontSize: '0.9rem' }}>Nuevo Plan para {obrasSociales.find(os => os.id == osIdParaNuevoPlan)?.nombre}</h6>
+                          <button type="button" className="btn-close" onClick={() => setMostrarNuevoPlan(false)}></button>
                         </div>
-                        {mostrarNuevoPlan && (
-                          <div className="card p-2 mt-2 bg-light border shadow-sm">
-                            <label className="form-label small font-weight-bold mb-1">Nombre del Plan</label>
-                            <input
-                              type="text"
-                              className="form-control form-control-sm mb-2"
-                              placeholder="Ej. Plan 210"
-                              value={nuevoPlanNombre}
-                              onChange={e => setNuevoPlanNombre(e.target.value)}
-                            />
-                            <label className="form-label small font-weight-bold mb-1">Código (Opcional)</label>
-                            <input
-                              type="text"
-                              className="form-control form-control-sm mb-2"
-                              placeholder="Ej. 210"
-                              value={nuevoPlanCodigo}
-                              onChange={e => setNuevoPlanCodigo(e.target.value)}
-                            />
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-accent text-white font-weight-bold w-100"
-                              onClick={handleCrearPlanInline}
-                              disabled={creandoPlan}
-                            >
-                              Guardar Plan
-                            </button>
-                          </div>
-                        )}
+                        <label className="form-label small font-weight-bold mb-1">Nombre del Plan</label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm mb-2"
+                          placeholder="Ej. Plan 210"
+                          value={nuevoPlanNombre}
+                          onChange={e => setNuevoPlanNombre(e.target.value)}
+                        />
+                        <label className="form-label small font-weight-bold mb-1">Código (Opcional)</label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm mb-2"
+                          placeholder="Ej. 210"
+                          value={nuevoPlanCodigo}
+                          onChange={e => setNuevoPlanCodigo(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-accent text-white font-weight-bold w-100"
+                          onClick={handleCrearPlanInline}
+                          disabled={creandoPlan}
+                        >
+                          Guardar Plan
+                        </button>
                       </div>
-                    ) : (
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Plan (texto libre)"
-                        {...register('planObraSocial')}
-                        disabled={cargando}
-                      />
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   <div className="col-12 col-sm-6">
                     <label className="form-label font-weight-bold">Servicio de Emergencias</label>

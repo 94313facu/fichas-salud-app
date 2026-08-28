@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { Paciente, Sesion, ObraSocial, PlanObraSocial, PortalFacturacion, Turno } = require('../models');
+const { Paciente, Sesion, ObraSocial, PlanObraSocial, PortalFacturacion, Turno, PacienteObraSocial } = require('../models');
 const { uploadFile } = require('../config/cloudinary');
 const authMiddleware = require('../middlewares/authMiddleware');
 
@@ -30,6 +30,14 @@ router.get('/', async (req, res) => {
         {
           model: PlanObraSocial,
           attributes: ['id', 'nombre', 'codigo']
+        },
+        {
+          model: PacienteObraSocial,
+          as: 'ObrasSocialesAsociadas',
+          include: [
+            { model: ObraSocial, attributes: ['id', 'nombre'] },
+            { model: PlanObraSocial, attributes: ['id', 'nombre', 'codigo'] }
+          ]
         }
       ],
       order: [['nombre', 'ASC']]
@@ -84,6 +92,9 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ mensaje: 'El nombre del paciente es obligatorio.' });
     }
 
+    // Extraer array de obras sociales si viene
+    const obrasSociales = req.body.obrasSociales || [];
+
     const nuevoPaciente = await Paciente.create({
       numeroFicha: numeroFicha ? numeroFicha.trim() : null,
       nombre: nombre.trim(),
@@ -119,6 +130,30 @@ router.post('/', async (req, res) => {
       planObraSocialId: planObraSocialId || null,
       profesionalId: req.user.id
     });
+
+    // Crear registros de obras sociales asociadas (multi-OS)
+    if (obrasSociales.length > 0) {
+      for (const os of obrasSociales) {
+        if (os.obraSocialId) {
+          await PacienteObraSocial.create({
+            pacienteId: nuevoPaciente.id,
+            obraSocialId: parseInt(os.obraSocialId),
+            planObraSocialId: os.planObraSocialId ? parseInt(os.planObraSocialId) : null,
+            numeroAfiliado: os.numeroAfiliado ? os.numeroAfiliado.trim() : null,
+            activa: true
+          });
+        }
+      }
+    } else if (obraSocialId) {
+      // Compatibilidad: si enviaron la OS individual legacy, crear también el registro
+      await PacienteObraSocial.create({
+        pacienteId: nuevoPaciente.id,
+        obraSocialId: parseInt(obraSocialId),
+        planObraSocialId: planObraSocialId ? parseInt(planObraSocialId) : null,
+        numeroAfiliado: numeroAfiliado ? numeroAfiliado.trim() : null,
+        activa: true
+      });
+    }
 
     res.status(201).json(nuevoPaciente);
   } catch (error) {
@@ -179,7 +214,11 @@ router.get('/:id', async (req, res) => {
       include: [
         {
           model: Sesion,
-          required: false
+          required: false,
+          include: [
+            { model: ObraSocial, as: 'ObraSocialSesion', attributes: ['id', 'nombre'], required: false },
+            { model: PlanObraSocial, as: 'PlanObraSocialSesion', attributes: ['id', 'nombre', 'codigo'], required: false }
+          ]
         },
         {
           model: ObraSocial,
@@ -191,6 +230,15 @@ router.get('/:id', async (req, res) => {
           model: PlanObraSocial,
           attributes: ['id', 'nombre', 'codigo'],
           required: false
+        },
+        {
+          model: PacienteObraSocial,
+          as: 'ObrasSocialesAsociadas',
+          required: false,
+          include: [
+            { model: ObraSocial, attributes: ['id', 'nombre'], include: [{ model: PortalFacturacion, attributes: ['id', 'nombre', 'url'], required: false }] },
+            { model: PlanObraSocial, attributes: ['id', 'nombre', 'codigo'] }
+          ]
         },
         {
           model: Turno,
@@ -296,6 +344,9 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ mensaje: 'El nombre del paciente es obligatorio.' });
     }
 
+    // Extraer array de obras sociales si viene
+    const obrasSociales = req.body.obrasSociales;
+
     // Actualizar datos
     await paciente.update({
       numeroFicha: numeroFicha !== undefined ? (numeroFicha ? numeroFicha.trim() : null) : paciente.numeroFicha,
@@ -332,12 +383,40 @@ router.put('/:id', async (req, res) => {
       planObraSocialId: planObraSocialId !== undefined ? (planObraSocialId || null) : paciente.planObraSocialId
     });
 
-    // Devolver el paciente actualizado incluyendo obra social
+    // Sincronizar obras sociales asociadas (multi-OS)
+    if (obrasSociales !== undefined) {
+      // Eliminar asociaciones anteriores y reemplazar
+      await PacienteObraSocial.destroy({ where: { pacienteId: id } });
+
+      if (Array.isArray(obrasSociales)) {
+        for (const os of obrasSociales) {
+          if (os.obraSocialId) {
+            await PacienteObraSocial.create({
+              pacienteId: parseInt(id),
+              obraSocialId: parseInt(os.obraSocialId),
+              planObraSocialId: os.planObraSocialId ? parseInt(os.planObraSocialId) : null,
+              numeroAfiliado: os.numeroAfiliado ? os.numeroAfiliado.trim() : null,
+              activa: os.activa !== undefined ? os.activa : true
+            });
+          }
+        }
+      }
+    }
+
+    // Devolver el paciente actualizado incluyendo obras sociales
     const pacienteActualizado = await Paciente.findOne({
       where: { id },
       include: [
         { model: ObraSocial, attributes: ['id', 'nombre'], include: [{ model: PortalFacturacion, attributes: ['id', 'nombre', 'url'] }] },
-        { model: PlanObraSocial, attributes: ['id', 'nombre', 'codigo'] }
+        { model: PlanObraSocial, attributes: ['id', 'nombre', 'codigo'] },
+        {
+          model: PacienteObraSocial,
+          as: 'ObrasSocialesAsociadas',
+          include: [
+            { model: ObraSocial, attributes: ['id', 'nombre'] },
+            { model: PlanObraSocial, attributes: ['id', 'nombre', 'codigo'] }
+          ]
+        }
       ]
     });
 
@@ -354,7 +433,7 @@ router.put('/:id', async (req, res) => {
 router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { notas, presupuesto, pago, codigoPractica, piezaDental, caraDental, modalidadCobro } = req.body;
+    const { notas, presupuesto, pago, codigoPractica, piezaDental, caraDental, modalidadCobro, obraSocialId: sesionObraSocialId, planObraSocialId: sesionPlanObraSocialId } = req.body;
 
     // Verificar paciente
     const paciente = await Paciente.findOne({
@@ -383,6 +462,27 @@ router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
     const pg = parseFloat(pago) || 0.00;
     const sld = pto - pg;
 
+    // Procesar practicas si vienen múltiples
+    let practicasJSON = null;
+    let legacyCodigo = null;
+    let legacyPieza = null;
+    let legacyCara = null;
+
+    if (req.body.practicas) {
+      try {
+        const parsedPracticas = typeof req.body.practicas === 'string' ? JSON.parse(req.body.practicas) : req.body.practicas;
+        if (Array.isArray(parsedPracticas) && parsedPracticas.length > 0) {
+          practicasJSON = JSON.stringify(parsedPracticas);
+          // Fallback legacy (guardamos la primera práctica en los campos individuales)
+          legacyCodigo = parsedPracticas[0].codigoPractica || null;
+          legacyPieza = parsedPracticas[0].piezaDental || null;
+          legacyCara = parsedPracticas[0].caraDental || null;
+        }
+      } catch (e) {
+        console.warn('Error al parsear practicas:', e);
+      }
+    }
+
     const nuevaSesion = await Sesion.create({
       notas: notas ? notas.trim() : null,
       archivoUrl,
@@ -390,10 +490,13 @@ router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
       presupuesto: pto,
       pago: pg,
       saldo: sld,
-      codigoPractica: codigoPractica ? codigoPractica.trim() : null,
-      piezaDental: piezaDental ? piezaDental.trim() : null,
-      caraDental: caraDental ? caraDental.trim() : null,
+      codigoPractica: legacyCodigo || (codigoPractica ? codigoPractica.trim() : null),
+      piezaDental: legacyPieza || (piezaDental ? piezaDental.trim() : null),
+      caraDental: legacyCara || (caraDental ? caraDental.trim() : null),
+      practicasMultiples: practicasJSON,
       modalidadCobro: modalidadCobro || 'obra_social',
+      obraSocialId: sesionObraSocialId ? parseInt(sesionObraSocialId) : null,
+      planObraSocialId: sesionPlanObraSocialId ? parseInt(sesionPlanObraSocialId) : null,
       pacienteId: paciente.id
     });
 

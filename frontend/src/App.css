@@ -320,3 +320,461 @@ h1, h2, h3, h4, h5, h6 {
   vertical-align: super;
   margin-left: 4px;
 }
+
+/* ============================
+   MÓDULO: CALENDARIO DE TURNOS
+   ============================ */
+
+/* Contenedor principal */
+.cal-container {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.cal-compacto {
+  padding: 12px;
+}
+
+.cal-compacto .cal-celda-dia {
+  min-height: 38px;
+  padding: 4px 2px;
+}
+
+.cal-compacto .cal-dia-numero {
+  font-size: 0.8rem;
+}
+
+.cal-compacto .cal-badge-turnos {
+  font-size: 0.6rem;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+}
+
+/* Header de navegación */
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.cal-titulo {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  letter-spacing: 0.3px;
+}
+
+.cal-nav-btn {
+  background: none;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--primary-color);
+  transition: all 0.2s ease;
+  font-size: 1rem;
+}
+
+.cal-nav-btn:hover {
+  background-color: var(--primary-color);
+  color: #ffffff;
+  border-color: var(--primary-color);
+  transform: scale(1.05);
+}
+
+/* Días de la semana header */
+.cal-dias-semana {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.cal-dia-header {
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 6px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Grilla de días */
+.cal-grilla {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.cal-celda {
+  min-height: 52px;
+  border-radius: 8px;
+  position: relative;
+}
+
+.cal-celda-vacia {
+  background: transparent;
+}
+
+.cal-celda-dia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  transition: all 0.2s ease;
+  gap: 3px;
+}
+
+.cal-celda-clickable {
+  cursor: pointer;
+}
+
+.cal-celda-clickable:hover {
+  transform: scale(1.05);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+
+/* Estados de los días */
+.cal-dia-inactivo {
+  background-color: #f8f9fa;
+  color: #c0c7cd;
+}
+
+.cal-dia-libre {
+  background-color: #e8f5e9;
+  border: 1px solid #c8e6c9;
+}
+
+.cal-dia-parcial {
+  background-color: #fff8e1;
+  border: 1px solid #ffe082;
+}
+
+.cal-dia-completo {
+  background-color: #ffebee;
+  border: 1px solid #ef9a9a;
+}
+
+.cal-dia-hoy {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -1px;
+  font-weight: 700;
+}
+
+.cal-dia-seleccionado {
+  outline: 2px solid var(--accent-color) !important;
+  outline-offset: -1px;
+  box-shadow: 0 0 0 3px rgba(199, 154, 60, 0.2);
+  transform: scale(1.08);
+  z-index: 3;
+}
+
+.cal-dia-numero {
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.cal-dia-indicadores {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.cal-badge-turnos {
+  font-size: 0.65rem;
+  background-color: var(--primary-color);
+  color: #ffffff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Dots indicadores */
+.cal-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.cal-dot-libre {
+  background-color: #4caf50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.cal-dot-parcial {
+  background-color: #ff9800;
+  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2);
+}
+
+.cal-dot-completo {
+  background-color: #f44336;
+  box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.2);
+}
+
+/* ============================
+   DETALLE DEL DÍA (SLOTS)
+   ============================ */
+
+.cal-detalle-dia {
+  background-color: #f8f9fa;
+  border-radius: 10px;
+  padding: 16px;
+  border: 1px solid #e9ecef;
+  animation: calSlideDown 0.25s ease-out;
+}
+
+@keyframes calSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 2000px;
+  }
+}
+
+.cal-slots-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.cal-slots-grid::-webkit-scrollbar {
+  width: 5px;
+}
+
+.cal-slots-grid::-webkit-scrollbar-thumb {
+  background-color: #c0c7cd;
+  border-radius: 4px;
+}
+
+/* Slots individuales */
+.cal-slot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
+}
+
+.cal-slot-libre {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+}
+
+.cal-slot-pasado {
+  opacity: 0.5;
+}
+
+.cal-slot-seleccionable {
+  cursor: pointer;
+}
+
+.cal-slot-seleccionable:hover {
+  border-color: var(--accent-color);
+  background-color: rgba(199, 154, 60, 0.08);
+  box-shadow: 0 2px 8px rgba(199, 154, 60, 0.15);
+  transform: translateX(4px);
+}
+
+.cal-slot-ocupado {
+  background-color: #fff;
+  border: 1px solid var(--primary-color);
+  border-left: 3px solid var(--primary-color);
+}
+
+.cal-slot-mi-paciente {
+  border-left-color: var(--accent-color) !important;
+  border-color: var(--accent-color);
+  background-color: rgba(199, 154, 60, 0.05);
+}
+
+.cal-slot-hora {
+  font-weight: 600;
+  color: var(--primary-color);
+  min-width: 100px;
+  white-space: nowrap;
+}
+
+.cal-slot-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.cal-slot-paciente {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.cal-slot-estado {
+  font-size: 0.72rem;
+  padding: 2px 6px;
+}
+
+.cal-slot-disponible {
+  font-weight: 500;
+  font-size: 0.82rem;
+}
+
+.cal-slot-notas {
+  width: 100%;
+  font-size: 0.78rem;
+  padding-left: 100px;
+}
+
+.cal-slot-duracion {
+  font-size: 0.78rem;
+}
+
+/* Leyenda */
+.cal-leyenda {
+  padding-top: 8px;
+  border-top: 1px solid #e9ecef;
+  color: var(--text-secondary);
+}
+
+/* ============================
+   CONFIGURACIÓN DE HORARIO
+   ============================ */
+
+.horario-dia-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+  flex-wrap: wrap;
+}
+
+.horario-dia-row:last-child {
+  border-bottom: none;
+}
+
+.horario-dia-nombre {
+  font-weight: 600;
+  min-width: 90px;
+  text-transform: capitalize;
+  color: var(--text-color);
+  font-size: 0.92rem;
+}
+
+.horario-dia-toggle {
+  cursor: pointer;
+}
+
+.horario-dia-toggle .form-check-input:checked {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.horario-dia-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.horario-dia-inputs input {
+  height: 36px !important;
+  font-size: 0.88rem !important;
+  padding: 4px 8px !important;
+  width: 100px;
+}
+
+.horario-dia-inactivo {
+  opacity: 0.4;
+}
+
+/* Vista toggle botones */
+.cal-vista-toggle {
+  display: flex;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cal-vista-toggle button {
+  border: none;
+  background: transparent;
+  padding: 6px 14px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.cal-vista-toggle button.activo {
+  background-color: var(--primary-color);
+  color: #ffffff;
+}
+
+.cal-vista-toggle button:hover:not(.activo) {
+  background-color: rgba(31, 78, 74, 0.08);
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+  .cal-celda-dia {
+    min-height: 42px;
+    padding: 4px 2px;
+  }
+
+  .cal-dia-numero {
+    font-size: 0.78rem;
+  }
+
+  .cal-badge-turnos {
+    font-size: 0.58rem;
+    width: 14px;
+    height: 14px;
+  }
+
+  .cal-slot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cal-slot-notas {
+    padding-left: 0;
+  }
+
+  .cal-slot-hora {
+    min-width: auto;
+  }
+
+  .horario-dia-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}

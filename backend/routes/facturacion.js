@@ -65,16 +65,33 @@ router.get('/pendientes', async (req, res) => {
               attributes: ['id', 'nombre', 'codigo']
             }
           ]
+        },
+        {
+          model: ObraSocial,
+          as: 'ObraSocialSesion',
+          attributes: ['id', 'nombre'],
+          required: false,
+          include: [{
+            model: PortalFacturacion,
+            attributes: ['id', 'nombre', 'url']
+          }]
+        },
+        {
+          model: PlanObraSocial,
+          as: 'PlanObraSocialSesion',
+          attributes: ['id', 'nombre', 'codigo'],
+          required: false
         }
       ],
       order: [['createdAt', 'DESC']]
     });
 
-    // Filtrar por obraSocialId si se especificó
+    // Filtrar por obraSocialId si se especificó (buscar en la OS de la sesión O en la del paciente)
     let resultado = sesiones;
     if (obraSocialId) {
+      const osIdInt = parseInt(obraSocialId);
       resultado = sesiones.filter(s =>
-        s.Paciente?.ObraSocial?.id === parseInt(obraSocialId)
+        (s.ObraSocialSesion?.id === osIdInt) || (!s.obraSocialId && s.Paciente?.ObraSocial?.id === osIdInt)
       );
     }
 
@@ -143,11 +160,19 @@ router.get('/resumen', async (req, res) => {
         pacienteId: { [Op.in]: pacienteIds },
         codigoPractica: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] }
       },
-      include: [{
-        model: Paciente,
-        attributes: ['id', 'obraSocialId'],
-        include: [{ model: ObraSocial, attributes: ['id', 'nombre'] }]
-      }]
+      include: [
+        {
+          model: Paciente,
+          attributes: ['id', 'obraSocialId'],
+          include: [{ model: ObraSocial, attributes: ['id', 'nombre'] }]
+        },
+        {
+          model: ObraSocial,
+          as: 'ObraSocialSesion',
+          attributes: ['id', 'nombre'],
+          required: false
+        }
+      ]
     });
 
     const total = {
@@ -159,8 +184,9 @@ router.get('/resumen', async (req, res) => {
 
     const obrasSocialesMap = {};
     sesiones.forEach(s => {
-      const osNombre = s.Paciente?.ObraSocial?.nombre || 'Particular / Sin OS';
-      const osId = s.Paciente?.ObraSocial?.id || 0;
+      // Usar la OS de la sesión si existe, sino la del paciente (legacy)
+      const osNombre = s.ObraSocialSesion?.nombre || s.Paciente?.ObraSocial?.nombre || 'Particular / Sin OS';
+      const osId = s.ObraSocialSesion?.id || s.Paciente?.ObraSocial?.id || 0;
       if (!obrasSocialesMap[osId]) {
         obrasSocialesMap[osId] = {
           obraSocialId: osId,

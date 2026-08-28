@@ -26,15 +26,17 @@ const FichaPaciente = () => {
   const [showCrearTurno, setShowCrearTurno] = useState(false);
   const [selectedSesion, setSelectedSesion] = useState(null);
 
+  // Nuevo estado para la Obra Social de la Sesión
+  const [sesionObraSocialId, setSesionObraSocialId] = useState('');
+
   // Nueva evolución
+  const [practicasSesion, setPracticasSesion] = useState([]);
   const [notas, setNotas] = useState('');
   const [codigoPractica, setCodigoPractica] = useState('');
   const [nombrePractica, setNombrePractica] = useState('');
   const [isNuevaPractica, setIsNuevaPractica] = useState(false);
   const [piezaDental, setPiezaDental] = useState('');
   const [caraDental, setCaraDental] = useState('');
-  const [alcanceNew, setAlcanceNew] = useState('paciente');
-  const [mesesNew, setMesesNew] = useState('12');
   const [validacionResult, setValidacionResult] = useState(null);
   const [showAdvertencia, setShowAdvertencia] = useState(false);
   const [presupuesto, setPresupuesto] = useState('');
@@ -57,6 +59,13 @@ const FichaPaciente = () => {
       setPaciente(pacienteData);
       setObrasSociales(obrasData);
       setCatalogoPracticas(practicasData);
+      
+      // Inicializar OS para la sesión si tiene múltiples o única
+      if (pacienteData.ObrasSocialesAsociadas && pacienteData.ObrasSocialesAsociadas.length > 0) {
+        setSesionObraSocialId(pacienteData.ObrasSocialesAsociadas[0].obraSocialId || '');
+      } else if (pacienteData.obraSocialId) {
+        setSesionObraSocialId(pacienteData.obraSocialId);
+      }
     } catch (err) {
       setErrorMsg(err.mensaje || 'Error al cargar la ficha del paciente.');
     } finally {
@@ -95,11 +104,20 @@ const FichaPaciente = () => {
     }
   };
 
-  // Enviar sesión con validación de frecuencia de práctica
-  const handleGuardarSesion = async (e) => {
+  // Eliminar una práctica de la lista temporal
+  const handleQuitarPractica = (index) => {
+    setPracticasSesion(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Agregar práctica a la lista temporal validando frecuencia
+  const handleAgregarPractica = async (e) => {
     e.preventDefault();
-    if (!notas.trim() && !archivo) {
-      setErrorMsg('Debes agregar notas o un archivo para guardar la sesión.');
+    if (!codigoPractica.trim() && !nombrePractica.trim()) {
+      setErrorMsg('Debes seleccionar o ingresar una práctica.');
+      return;
+    }
+    if (practicasSesion.length >= 5) {
+      setErrorMsg('Solo puedes registrar hasta 5 prácticas por sesión.');
       return;
     }
 
@@ -107,19 +125,7 @@ const FichaPaciente = () => {
       setGuardando(true);
       setErrorMsg('');
 
-      // 1. Guardar o actualizar la práctica en el catálogo si ingresó código y nombre
-      if (codigoPractica.trim() && nombrePractica.trim()) {
-        await practicasService.savePractica({
-          codigo: codigoPractica.trim(),
-          nombre: nombrePractica.trim(),
-          alcance: alcanceNew,
-          mesesFrecuencia: parseInt(mesesNew) || 0,
-          obraSocialId: paciente?.obraSocialId || null,
-          planObraSocialId: paciente?.planObraSocialId || null
-        });
-      }
-
-      // 2. Ejecutar validación de frecuencia por Obra Social
+      // 2. Ejecutar validación de frecuencia
       if (codigoPractica.trim()) {
         const val = await practicasService.validarFrecuencia(
           id,
@@ -127,9 +133,7 @@ const FichaPaciente = () => {
           piezaDental,
           caraDental,
           null,
-          parseInt(mesesNew) || 0,
-          alcanceNew,
-          nombrePractica.trim()
+          sesionObraSocialId ? parseInt(sesionObraSocialId) : null
         );
 
         if (!val.valido) {
@@ -140,18 +144,50 @@ const FichaPaciente = () => {
         }
       }
 
-      await ejecutarGuardarSesion('obra_social');
+      // Si es válido, agregarlo a la lista temporal
+      setPracticasSesion(prev => [...prev, {
+        codigoPractica: codigoPractica.trim(),
+        nombrePractica: nombrePractica.trim(),
+        piezaDental: piezaDental.trim(),
+        caraDental: caraDental.trim()
+      }]);
+
+      // Limpiar inputs
+      setCodigoPractica('');
+      setNombrePractica('');
+      setIsNuevaPractica(false);
+      setPiezaDental('');
+      setCaraDental('');
+      
     } catch (err) {
-      setErrorMsg(err.mensaje || 'Error al guardar la sesión.');
+      setErrorMsg(err.mensaje || 'Error al validar la práctica.');
+    } finally {
       setGuardando(false);
     }
   };
 
   const ejecutarGuardarSesion = async (modalidadCobro = 'obra_social') => {
     try {
+      // Si la lista está vacía, exigimos una nota o un archivo
+      if (practicasSesion.length === 0 && !notas.trim() && !archivo) {
+        setErrorMsg('Debes registrar al menos una práctica, nota o archivo para guardar la sesión.');
+        return;
+      }
+
       setGuardando(true);
       setErrorMsg('');
       setMensajeExito('');
+
+      // Buscar el plan correspondiente a la OS seleccionada
+      let planId = null;
+      if (sesionObraSocialId) {
+        if (paciente.ObrasSocialesAsociadas) {
+          const osAsoc = paciente.ObrasSocialesAsociadas.find(o => o.obraSocialId == sesionObraSocialId);
+          if (osAsoc) planId = osAsoc.planObraSocialId;
+        } else if (paciente.obraSocialId == sesionObraSocialId) {
+          planId = paciente.planObraSocialId;
+        }
+      }
 
       await pacientesService.createSesion(
         id,
@@ -159,13 +195,14 @@ const FichaPaciente = () => {
         archivo,
         presupuesto || 0,
         pago || 0,
-        codigoPractica,
-        piezaDental,
-        caraDental,
-        modalidadCobro
+        practicasSesion,
+        modalidadCobro,
+        sesionObraSocialId ? parseInt(sesionObraSocialId) : null,
+        planId ? parseInt(planId) : null
       );
       
       // Limpiar formulario
+      setPracticasSesion([]);
       setNotas('');
       setCodigoPractica('');
       setNombrePractica('');
@@ -462,7 +499,7 @@ const FichaPaciente = () => {
               <div className="card p-4 border-0 shadow-sm">
                 <h3 className="fs-5 mb-3" style={{ color: 'var(--primary-color)' }}>Registrar Evolución</h3>
                 
-                <form onSubmit={handleGuardarSesion}>
+                <div>
                   {/* Código de Práctica y Facturación Odontológica */}
                   <div className="card p-3 bg-light border mb-3">
                     <h6 className="font-weight-bold text-primary mb-2" style={{ fontSize: '0.92rem' }}>
@@ -470,6 +507,26 @@ const FichaPaciente = () => {
                     </h6>
                     
                     <div className="row g-2">
+                      {/* Selector de Obra Social (solo visible si tiene OS) */}
+                      {((paciente.ObrasSocialesAsociadas && paciente.ObrasSocialesAsociadas.length > 0) || paciente.obraSocialId) && (
+                        <div className="col-12 mb-2">
+                          <label className="form-label font-weight-bold mb-1 small">Facturar a Obra Social</label>
+                          <select 
+                            className="form-select form-select-sm" 
+                            value={sesionObraSocialId}
+                            onChange={e => setSesionObraSocialId(e.target.value)}
+                          >
+                            <option value="">Particular / Sin Facturar a OS</option>
+                            {(paciente.ObrasSocialesAsociadas && paciente.ObrasSocialesAsociadas.length > 0) 
+                              ? paciente.ObrasSocialesAsociadas.map(os => (
+                                <option key={os.id} value={os.obraSocialId}>{os.ObraSocial?.nombre}</option>
+                              ))
+                              : (paciente.ObraSocial && <option value={paciente.ObraSocial.id}>{paciente.ObraSocial.nombre}</option>)
+                            }
+                          </select>
+                        </div>
+                      )}
+
                       <div className="col-12 col-sm-7">
                         <label className="form-label font-weight-bold mb-1 small">Nombre de la Práctica</label>
                         {isNuevaPractica ? (
@@ -531,36 +588,6 @@ const FichaPaciente = () => {
                           readOnly={!isNuevaPractica && nombrePractica !== ''}
                         />
                       </div>
-                      {/* Reglas de refacturación siempre visibles */}
-                      <div className="col-12 mt-2 p-2 bg-light rounded border">
-                        <small className="text-secondary font-weight-bold d-block mb-1">
-                          <i className="bi bi-gear-fill me-1"></i> Reglas de Refacturación para Obra Social
-                          </small>
-                          <div className="row g-2">
-                            <div className="col-12 col-sm-7">
-                              <label className="form-label mb-1 small">Alcance de Restricción</label>
-                              <select
-                                className="form-select form-select-sm"
-                                value={alcanceNew}
-                                onChange={(e) => setAlcanceNew(e.target.value)}
-                              >
-                                <option value="paciente">Por Paciente (global)</option>
-                                <option value="diente">Por Diente / Pieza Dental</option>
-                                <option value="cara">Por Cara del Diente</option>
-                              </select>
-                            </div>
-                            <div className="col-12 col-sm-5">
-                              <label className="form-label mb-1 small">Frecuencia (Meses)</label>
-                              <input
-                                type="number"
-                                className="form-control form-control-sm"
-                                placeholder="Meses (ej: 12)"
-                                value={mesesNew}
-                                onChange={(e) => setMesesNew(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                        </div>
 
                       {/* Pieza y Cara Dental (Opcional) */}
                       <div className="col-6 col-sm-6 mt-2">
@@ -584,8 +611,39 @@ const FichaPaciente = () => {
                           onChange={(e) => setCaraDental(e.target.value)}
                         />
                       </div>
+                      <div className="col-12 mt-3">
+                        <button 
+                          type="button" 
+                          className="btn btn-outline-primary btn-sm w-100" 
+                          onClick={handleAgregarPractica}
+                          disabled={guardando || (!codigoPractica && !nombrePractica) || practicasSesion.length >= 5}
+                        >
+                          <i className="bi bi-plus-circle me-1"></i> Agregar Práctica
+                        </button>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Lista de Prácticas Agregadas */}
+                  {practicasSesion.length > 0 && (
+                    <div className="mb-3">
+                      <h6 className="font-weight-bold text-primary mb-2 small">Prácticas a registrar ({practicasSesion.length}/5)</h6>
+                      <ul className="list-group list-group-flush border rounded">
+                        {practicasSesion.map((prac, idx) => (
+                          <li key={idx} className="list-group-item d-flex justify-content-between align-items-center py-1 px-2 small bg-light">
+                            <div>
+                              <strong>{prac.codigoPractica}</strong> - {prac.nombrePractica}
+                              {prac.piezaDental && <span className="badge bg-secondary ms-1">Pieza: {prac.piezaDental}</span>}
+                              {prac.caraDental && <span className="badge bg-secondary ms-1">Cara: {prac.caraDental}</span>}
+                            </div>
+                            <button type="button" className="btn btn-sm btn-link text-danger p-0 m-0" onClick={() => handleQuitarPractica(idx)}>
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {/* Notas */}
                   <div className="mb-3">
@@ -594,7 +652,7 @@ const FichaPaciente = () => {
                       id="notas"
                       rows="4"
                       className="form-control"
-                      placeholder="Escribe las notas clínicas de la sesión..."
+                      placeholder="Escribe notas clínicas opcionales para la sesión..."
                       value={notas}
                       onChange={(e) => setNotas(e.target.value)}
                       disabled={guardando}
@@ -653,18 +711,24 @@ const FichaPaciente = () => {
                     />
                   </div>
 
-                  <button
-                    type="submit"
-                    className="btn btn-primary w-100"
-                    disabled={guardando || (!notas.trim() && !archivo)}
+                  <button 
+                    type="button" 
+                    className="btn btn-primary w-100 py-2 fs-5 mt-4 text-white shadow-sm" 
+                    onClick={() => ejecutarGuardarSesion(sesionObraSocialId ? 'obra_social' : 'particular')} 
+                    disabled={guardando || (practicasSesion.length === 0 && !notas && !archivo)}
                   >
                     {guardando ? (
-                      <><span className="spinner-border spinner-border-sm me-2" role="status"></span>Guardando...</>
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Guardando...
+                      </>
                     ) : (
-                      <><i className="bi bi-save me-1"></i> Guardar evolución</>
+                      <>
+                        <i className="bi bi-save me-2"></i>Guardar Sesión
+                      </>
                     )}
                   </button>
-                </form>
+                </div>
               </div>
 
               {/* BLOQUE: PRÓXIMO TURNO */}
@@ -756,13 +820,27 @@ const FichaPaciente = () => {
                             <i className="bi bi-calendar-event text-primary me-1"></i>
                             {formatearFecha(sesion.createdAt)}
                           </span>
-                          {sesion.codigoPractica && (
-                            <span className="badge bg-white text-dark border ms-2" style={{ fontSize: '0.85rem' }}>
-                              <i className="bi bi-tag me-1 text-primary"></i>Cód: <strong>{sesion.codigoPractica}</strong>
-                              <span className="ms-1 text-muted">({catalogoPracticas.find(p => p.codigo.toLowerCase() === sesion.codigoPractica.toLowerCase())?.nombre || 'Práctica no catalogada'})</span>
-                            </span>
-                          )}
                         </div>
+                        
+                        {(() => {
+                          let practicas = [];
+                          if (sesion.practicasMultiples) {
+                            try { practicas = JSON.parse(sesion.practicasMultiples); } catch(e){}
+                          } else if (sesion.codigoPractica) {
+                            practicas = [{ codigoPractica: sesion.codigoPractica }];
+                          }
+                          return practicas.map((p, idx) => (
+                            <div key={idx} className="mt-2 text-dark bg-light px-2 py-1 rounded d-inline-block border small mb-2 me-2">
+                              <i className="bi bi-tag me-1 text-primary"></i>Cód: <strong>{p.codigoPractica}</strong>
+                              <span className="ms-1 text-muted">({catalogoPracticas.find(c => c.codigo.toLowerCase() === p.codigoPractica?.toLowerCase())?.nombre || 'Práctica no catalogada'})</span>
+                              {idx === 0 && sesion.obraSocialId && (
+                                <span className="badge bg-secondary ms-2" title="Obra Social usada para facturar">
+                                  {sesion.ObraSocialSesion?.nombre || 'Obra Social'}
+                                </span>
+                              )}
+                            </div>
+                          ));
+                        })()}
                         
                         <div className="d-flex justify-content-end mb-2">
                           <button

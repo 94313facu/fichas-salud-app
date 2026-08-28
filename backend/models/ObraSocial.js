@@ -24,6 +24,16 @@ const ObraSocial = sequelize.define('ObraSocial', {
     type: DataTypes.TEXT,
     allowNull: true,
     comment: 'Notas internas del profesional sobre el convenio'
+  },
+  limitePracticasMensual: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'Límite máximo de prácticas por mes (global para la OS)'
+  },
+  limitePracticasAnual: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'Límite máximo de prácticas por año (global para la OS)'
   }
 }, {
   tableName: 'ObrasSociales',

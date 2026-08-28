@@ -7,6 +7,7 @@ const PlanObraSocial = require('./PlanObraSocial');
 const PortalFacturacion = require('./PortalFacturacion');
 const Turno = require('./Turno');
 const Practica = require('./Practica');
+const PacienteObraSocial = require('./PacienteObraSocial');
 
 // Relaciones: Profesional hasMany Paciente
 Profesional.hasMany(Paciente, {
@@ -53,7 +54,7 @@ PlanObraSocial.belongsTo(ObraSocial, {
   foreignKey: { name: 'obraSocialId', allowNull: false }
 });
 
-// Relaciones: ObraSocial hasMany Paciente
+// Relaciones LEGACY: ObraSocial hasMany Paciente (se mantiene para compatibilidad)
 ObraSocial.hasMany(Paciente, {
   foreignKey: { name: 'obraSocialId', allowNull: true },
   onDelete: 'SET NULL'
@@ -62,13 +63,53 @@ Paciente.belongsTo(ObraSocial, {
   foreignKey: { name: 'obraSocialId', allowNull: true }
 });
 
-// Relaciones: PlanObraSocial hasMany Paciente
+// Relaciones LEGACY: PlanObraSocial hasMany Paciente
 PlanObraSocial.hasMany(Paciente, {
   foreignKey: { name: 'planObraSocialId', allowNull: true },
   onDelete: 'SET NULL'
 });
 Paciente.belongsTo(PlanObraSocial, {
   foreignKey: { name: 'planObraSocialId', allowNull: true }
+});
+
+// ============================
+// NUEVA RELACIÓN: Paciente <-> ObraSocial (many-to-many via PacienteObraSocial)
+// ============================
+Paciente.hasMany(PacienteObraSocial, {
+  foreignKey: 'pacienteId',
+  as: 'ObrasSocialesAsociadas',
+  onDelete: 'CASCADE'
+});
+PacienteObraSocial.belongsTo(Paciente, {
+  foreignKey: 'pacienteId'
+});
+
+ObraSocial.hasMany(PacienteObraSocial, {
+  foreignKey: 'obraSocialId',
+  onDelete: 'CASCADE'
+});
+PacienteObraSocial.belongsTo(ObraSocial, {
+  foreignKey: 'obraSocialId'
+});
+
+PlanObraSocial.hasMany(PacienteObraSocial, {
+  foreignKey: 'planObraSocialId',
+  onDelete: 'SET NULL'
+});
+PacienteObraSocial.belongsTo(PlanObraSocial, {
+  foreignKey: 'planObraSocialId'
+});
+
+// ============================
+// Sesion -> ObraSocial (registra con qué OS se facturó cada sesión)
+// ============================
+Sesion.belongsTo(ObraSocial, {
+  foreignKey: { name: 'obraSocialId', allowNull: true },
+  as: 'ObraSocialSesion'
+});
+Sesion.belongsTo(PlanObraSocial, {
+  foreignKey: { name: 'planObraSocialId', allowNull: true },
+  as: 'PlanObraSocialSesion'
 });
 
 // Relaciones: Paciente hasMany Sesion
@@ -134,5 +175,6 @@ module.exports = {
   PlanObraSocial,
   PortalFacturacion,
   Turno,
-  Practica
+  Practica,
+  PacienteObraSocial
 };

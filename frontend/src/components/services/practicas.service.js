@@ -32,16 +32,31 @@ const practicasService = {
   },
 
   /**
-   * Ejecuta el motor de validación de frecuencia por Obra Social
-   */
-  async validarFrecuencia(pacienteId, codigoPractica, piezaDental, caraDental, fechaEv) {
+  async validarFrecuencia(pacienteId, codigoPractica, piezaDental, caraDental, fechaEv, obraSocialId) {
     const response = await api.post('/api/practicas/validar-frecuencia', {
       pacienteId,
       codigoPractica,
       piezaDental,
       caraDental,
-      fechaEv
+      fechaEv,
+      obraSocialId
     });
+    return response.data;
+  },
+
+  /**
+   * Elimina una práctica (restricción)
+   */
+  async deletePractica(id) {
+    const response = await api.delete(`/api/practicas/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Obtiene prácticas (restricciones) para una Obra Social
+   */
+  async getPracticasByOS(obraSocialId) {
+    const response = await api.get(`/api/practicas?obraSocialId=${obraSocialId}`);
     return response.data;
   }
 };

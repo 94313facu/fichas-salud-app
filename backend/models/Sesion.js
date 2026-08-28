@@ -61,6 +61,21 @@ const Sesion = sequelize.define('Sesion', {
     allowNull: false,
     defaultValue: 'pendiente',
     comment: 'Estado del flujo de facturación externa'
+  },
+  practicasMultiples: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'JSON con el listado de prácticas realizadas (código, nombre, pieza, cara)'
+  },
+  obraSocialId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'FK a la obra social con la que se facturó esta sesión'
+  },
+  planObraSocialId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'FK al plan de la obra social usada en esta sesión'
   }
 }, {
   tableName: 'Sesiones',

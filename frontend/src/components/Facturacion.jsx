@@ -253,9 +253,18 @@ const Facturacion = () => {
         <div className="d-flex flex-column gap-3">
           {sesiones.map(sesion => {
             const pac = sesion.Paciente || {};
-            const os = pac.ObraSocial || {};
+            // Usar OS/Plan de la sesión, fallback a la del paciente (legacy)
+            const os = sesion.ObraSocialSesion || pac.ObraSocial || {};
             const portal = os.PortalFacturacion || {};
-            const plan = pac.PlanObraSocial || {};
+            const plan = sesion.PlanObraSocialSesion || pac.PlanObraSocial || {};
+            
+            // Para obtener afiliado buscar en ObrasSocialesAsociadas o fallback legacy
+            let afil = pac.numeroAfiliado;
+            if (pac.ObrasSocialesAsociadas) {
+               const osAsoc = pac.ObrasSocialesAsociadas.find(o => o.obraSocialId === os.id);
+               if (osAsoc) afil = osAsoc.numeroAfiliado;
+            }
+
             const estadoInfo = ESTADOS[sesion.estadoFacturacion] || ESTADOS.pendiente;
 
             return (
@@ -280,8 +289,8 @@ const Facturacion = () => {
                         <span className="fw-bold text-dark">
                           <i className="bi bi-person me-1 text-primary"></i>{pac.nombre || 'Paciente'}
                         </span>
-                        {pac.numeroAfiliado && (
-                          <span className="text-muted-custom small">Nº Afil: <strong>{pac.numeroAfiliado}</strong></span>
+                        {afil && (
+                          <span className="text-muted-custom small">Nº Afil: <strong>{afil}</strong></span>
                         )}
                         {(plan.nombre || pac.planObraSocial) && (
                           <span className="text-muted-custom small">Plan: <strong>{plan.nombre || pac.planObraSocial}</strong></span>
@@ -289,19 +298,31 @@ const Facturacion = () => {
                       </div>
 
                       <div className="d-flex flex-wrap gap-2" style={{ fontSize: '0.9rem' }}>
-                        <span className="badge bg-light text-dark border">
-                          <i className="bi bi-tag me-1"></i>Cód: <strong>{sesion.codigoPractica}</strong>
-                        </span>
-                        {sesion.piezaDental && (
-                          <span className="badge bg-light text-dark border">
-                            Pieza: <strong>{sesion.piezaDental}</strong>
-                          </span>
-                        )}
-                        {sesion.caraDental && (
-                          <span className="badge bg-light text-dark border">
-                            Cara: <strong>{sesion.caraDental}</strong>
-                          </span>
-                        )}
+                        {(() => {
+                          let practicas = [];
+                          if (sesion.practicasMultiples) {
+                            try { practicas = JSON.parse(sesion.practicasMultiples); } catch(e){}
+                          } else if (sesion.codigoPractica) {
+                            practicas = [{ 
+                              codigoPractica: sesion.codigoPractica,
+                              piezaDental: sesion.piezaDental,
+                              caraDental: sesion.caraDental
+                            }];
+                          }
+                          
+                          if (practicas.length === 0) {
+                            return <span className="text-muted small">Sin prácticas registradas</span>;
+                          }
+
+                          return practicas.map((p, idx) => (
+                            <div key={idx} className="d-flex align-items-center gap-1 border rounded px-2 py-1 bg-light text-dark">
+                              <i className="bi bi-tag text-primary"></i>
+                              <span>Cód: <strong>{p.codigoPractica}</strong></span>
+                              {p.piezaDental && <span className="ms-1 border-start ps-1 border-secondary">P: <strong>{p.piezaDental}</strong></span>}
+                              {p.caraDental && <span className="ms-1 border-start ps-1 border-secondary">C: <strong>{p.caraDental}</strong></span>}
+                            </div>
+                          ));
+                        })()}
                       </div>
                     </div>
 

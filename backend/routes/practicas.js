@@ -136,55 +136,39 @@ router.post('/', async (req, res) => {
 
 // POST /api/practicas/validar-frecuencia
 // Motor de validación de frecuencia por Obra Social
+// Ahora soporta multi-OS: recibe el obraSocialId explícito con el que se va a facturar
 router.post('/validar-frecuencia', async (req, res) => {
   try {
-    const { pacienteId, codigoPractica, piezaDental, caraDental, fechaEv, mesesFrecuenciaInput, alcanceInput, nombreInput } = req.body;
+    const { pacienteId, codigoPractica, piezaDental, caraDental, fechaEv, obraSocialId: obraSocialIdParam } = req.body;
 
     if (!pacienteId || !codigoPractica) {
       return res.status(400).json({ mensaje: 'pacienteId y codigoPractica son requeridos.' });
     }
 
-    // 1. Obtener datos del paciente y su obra social
+    // 1. Obtener datos del paciente
     const paciente = await Paciente.findOne({
-      where: { id: pacienteId, profesionalId: req.user.id },
-      include: [{ model: ObraSocial, attributes: ['id', 'nombre'] }]
+      where: { id: pacienteId, profesionalId: req.user.id }
     });
 
     if (!paciente) {
       return res.status(404).json({ mensaje: 'Paciente no encontrado.' });
     }
 
-    // Si el paciente es particular / sin obra social, NO se aplican restricciones de facturación
-    if (!paciente.obraSocialId && !paciente.ObraSocial) {
-      return res.json({ valido: true, motivo: 'Paciente Particular / Sin Obra Social' });
+    // Determinar la OS a validar: si se envió explícitamente, usar esa; si no, fallback a la legacy
+    const obraSocialId = obraSocialIdParam ? parseInt(obraSocialIdParam) : paciente.obraSocialId;
+    const planObraSocialId = planObraSocialIdParam ? parseInt(planObraSocialIdParam) : paciente.planObraSocialId;
+
+    // Si no hay OS, no se aplican restricciones (particular)
+    if (!obraSocialId) {
+      return res.json({ valido: true, motivo: 'Paciente Particular / Sin Obra Social seleccionada' });
     }
 
-    // 2. Buscar si existe regla de frecuencia para este código (normalizado) y contexto
-    const searchTarget = cleanCode(codigoPractica);
-    const practicas = await Practica.findAll({
-      where: { profesionalId: req.user.id }
-    });
+    // Obtener datos de OS y límites
+    const obraSocial = await ObraSocial.findByPk(obraSocialId);
+    const obraSocialNombre = obraSocial?.nombre || 'Obra Social';
 
-    // Intentamos buscar la regla específica para OS y Plan, luego solo OS, luego genérica
-    let practica = practicas.find(p => cleanCode(p.codigo) === searchTarget && p.obraSocialId === paciente.obraSocialId && p.planObraSocialId === paciente.planObraSocialId);
-    if (!practica) {
-      practica = practicas.find(p => cleanCode(p.codigo) === searchTarget && p.obraSocialId === paciente.obraSocialId && p.planObraSocialId === null);
-    }
-    if (!practica) {
-      practica = practicas.find(p => cleanCode(p.codigo) === searchTarget && p.obraSocialId === null && p.planObraSocialId === null);
-    }
-
-    let mesesFrecuencia = practica ? practica.mesesFrecuencia : (parseInt(mesesFrecuenciaInput) || 0);
-    let alcance = practica ? practica.alcance : (alcanceInput || 'paciente');
-    let nombrePractica = practica ? practica.nombre : (nombreInput || codigoPractica);
-
-    // Si no se definió restricción de meses (0 meses)
-    if (!mesesFrecuencia || mesesFrecuencia <= 0) {
-      return res.json({ valido: true, motivo: 'Práctica sin restricción de frecuencia' });
-    }
-
-    // 3. Consultar historial de sesiones del paciente para códigos equivalentes (con o sin puntos)
-    const sesionesPrevias = await Sesion.findAll({
+    // 2. Consultar historial de TODAS las sesiones del paciente con esta OS para validar límites globales
+    const sesionesPreviasTodas = await Sesion.findAll({
       where: {
         pacienteId,
         modalidadCobro: 'obra_social'
@@ -192,12 +176,96 @@ router.post('/validar-frecuencia', async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    const sesionesCoincidentes = sesionesPrevias.filter(s => 
-      s.codigoPractica && cleanCode(s.codigoPractica) === searchTarget
-    );
+    const sesionesOSActual = sesionesPreviasTodas.filter(s => {
+      const sesionOsId = s.obraSocialId || paciente.obraSocialId;
+      return sesionOsId === obraSocialId;
+    });
+
+    const fechaRef = fechaEv ? new Date(fechaEv) : new Date();
+
+    // Validar Límite Mensual
+    if (obraSocial && obraSocial.limitePracticasMensual > 0) {
+      let practicasMensuales = 0;
+      sesionesOSActual.forEach(s => {
+        const d = new Date(s.createdAt);
+        if (d.getFullYear() === fechaRef.getFullYear() && d.getMonth() === fechaRef.getMonth()) {
+          if (s.practicasMultiples) {
+            try { practicasMensuales += JSON.parse(s.practicasMultiples).length; } catch(e){}
+          } else if (s.codigoPractica) {
+            practicasMensuales += 1;
+          }
+        }
+      });
+      if (practicasMensuales >= obraSocial.limitePracticasMensual) {
+        return res.json({ valido: false, motivo: `Límite mensual de la Obra Social (${obraSocial.limitePracticasMensual}) superado.` });
+      }
+    }
+
+    // Validar Límite Anual
+    if (obraSocial && obraSocial.limitePracticasAnual > 0) {
+      let practicasAnuales = 0;
+      sesionesOSActual.forEach(s => {
+        const d = new Date(s.createdAt);
+        if (d.getFullYear() === fechaRef.getFullYear()) {
+          if (s.practicasMultiples) {
+            try { practicasAnuales += JSON.parse(s.practicasMultiples).length; } catch(e){}
+          } else if (s.codigoPractica) {
+            practicasAnuales += 1;
+          }
+        }
+      });
+      if (practicasAnuales >= obraSocial.limitePracticasAnual) {
+        return res.json({ valido: false, motivo: `Límite anual de la Obra Social (${obraSocial.limitePracticasAnual}) superado.` });
+      }
+    }
+
+    // 3. Buscar si existe regla de frecuencia ESPECÍFICA para este código y esta Obra Social
+    const searchTarget = cleanCode(codigoPractica);
+    const practica = await Practica.findOne({
+      where: { 
+        profesionalId: req.user.id,
+        obraSocialId: obraSocialId,
+        codigo: searchTarget // Note: assumes db stored codes are exact or we should use logic below
+      }
+    });
+
+    // Como cleanCode se usa, mejor buscamos todas de la OS y filtramos
+    const practicasOS = await Practica.findAll({
+      where: { profesionalId: req.user.id, obraSocialId: obraSocialId }
+    });
+    
+    let reglaEspecifica = practicasOS.find(p => cleanCode(p.codigo) === searchTarget);
+
+    if (!reglaEspecifica || reglaEspecifica.mesesFrecuencia <= 0) {
+      return res.json({ valido: true, motivo: 'Práctica sin restricción de frecuencia específica definida en esta Obra Social' });
+    }
+
+    const mesesFrecuencia = reglaEspecifica.mesesFrecuencia;
+    const alcance = reglaEspecifica.alcance;
+    const nombrePractica = reglaEspecifica.nombre;
+
+    // 4. Filtrar el historial para ver si se hizo ESTA práctica
+    const sesionesCoincidentes = sesionesOSActual.filter(s => {
+    // Validar coincidencia en sesionesOSActual filtradas arriba
+      let practicasEnSesion = [];
+      if (s.practicasMultiples) {
+        try {
+          practicasEnSesion = JSON.parse(s.practicasMultiples);
+        } catch (e) {}
+      } else if (s.codigoPractica) {
+        practicasEnSesion = [{
+          codigoPractica: s.codigoPractica,
+          piezaDental: s.piezaDental,
+          caraDental: s.caraDental
+        }];
+      }
+
+      // Vemos si alguna práctica en esta sesión coincide con el target
+      return practicasEnSesion.some(p => p.codigoPractica && cleanCode(p.codigoPractica) === searchTarget);
+    });
 
     if (!sesionesCoincidentes || sesionesCoincidentes.length === 0) {
-      return res.json({ valido: true, motivo: 'Sin antecedentes de esta práctica' });
+      return res.json({ valido: true, motivo: 'Sin antecedentes de esta práctica con esta Obra Social' });
     }
 
     // 4. Filtrar según el alcance de la restricción
@@ -205,13 +273,25 @@ router.post('/validar-frecuencia', async (req, res) => {
 
     if (alcance === 'paciente') {
       sesionConflictiva = sesionesCoincidentes[0];
-    } else if (alcance === 'diente') {
-      sesionConflictiva = sesionesCoincidentes.find(s => s.piezaDental && s.piezaDental.toString() === piezaDental?.toString());
-    } else if (alcance === 'cara') {
-      sesionConflictiva = sesionesCoincidentes.find(s => 
-        s.piezaDental && s.piezaDental.toString() === piezaDental?.toString() &&
-        s.caraDental && caraDental && s.caraDental.toLowerCase().includes(caraDental.toLowerCase())
-      );
+    } else if (alcance === 'diente' || alcance === 'cara') {
+      sesionConflictiva = sesionesCoincidentes.find(s => {
+        let practicas = [];
+        if (s.practicasMultiples) {
+          try { practicas = JSON.parse(s.practicasMultiples); } catch(e) {}
+        } else if (s.codigoPractica) {
+          practicas = [{ codigoPractica: s.codigoPractica, piezaDental: s.piezaDental, caraDental: s.caraDental }];
+        }
+        
+        return practicas.some(p => {
+          if (cleanCode(p.codigoPractica) !== searchTarget) return false;
+          if (alcance === 'diente') {
+            return p.piezaDental && p.piezaDental.toString() === piezaDental?.toString();
+          } else {
+            return p.piezaDental && p.piezaDental.toString() === piezaDental?.toString() &&
+                   p.caraDental && caraDental && p.caraDental.toLowerCase().includes(caraDental.toLowerCase());
+          }
+        });
+      });
     }
 
     if (!sesionConflictiva) {
@@ -220,7 +300,6 @@ router.post('/validar-frecuencia', async (req, res) => {
 
     // 5. Calcular tiempo transcurrido desde la última realización
     const fechaUltima = new Date(sesionConflictiva.createdAt);
-    const fechaRef = fechaEv ? new Date(fechaEv) : new Date();
 
     const mesesDiff = (fechaRef.getFullYear() - fechaUltima.getFullYear()) * 12 + (fechaRef.getMonth() - fechaUltima.getMonth());
 
@@ -234,12 +313,12 @@ router.post('/validar-frecuencia', async (req, res) => {
         codigo: codigoPractica,
         alcance: alcance,
         mesesFrecuencia: mesesFrecuencia,
-        obraSocialNombre: paciente.ObraSocial?.nombre || 'Obra Social',
+        obraSocialNombre: obraSocialNombre,
         fechaUltima: fechaUltima.toISOString().split('T')[0],
         fechaHabilitacion: fechaHabilitacion.toISOString().split('T')[0],
         piezaDental: sesionConflictiva.piezaDental,
         caraDental: sesionConflictiva.caraDental,
-        mensaje: `La Obra Social (${paciente.ObraSocial?.nombre || 'Obra Social'}) rechazará la práctica "${nombrePractica}" (${codigoPractica}) porque exige una frecuencia mínima de ${mesesFrecuencia} meses.`
+        mensaje: `La Obra Social (${obraSocialNombre}) rechazará la práctica "${nombrePractica}" (${codigoPractica}) porque exige una frecuencia mínima de ${mesesFrecuencia} meses.`
       });
     }
 

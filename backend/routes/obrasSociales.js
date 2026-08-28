@@ -160,7 +160,7 @@ router.get('/', async (req, res) => {
 // Crear una nueva obra social
 router.post('/', async (req, res) => {
   try {
-    const { nombre, portalFacturacionId, notas } = req.body;
+    const { nombre, portalFacturacionId, notas, limitePracticasMensual, limitePracticasAnual } = req.body;
     if (!nombre || nombre.trim() === '') {
       return res.status(400).json({ mensaje: 'El nombre de la obra social es obligatorio.' });
     }
@@ -186,6 +186,8 @@ router.post('/', async (req, res) => {
       nombre: nombre.trim(),
       portalFacturacionId: portalFacturacionId || null,
       notas: notas ? notas.trim() : null,
+      limitePracticasMensual: limitePracticasMensual ? parseInt(limitePracticasMensual) : null,
+      limitePracticasAnual: limitePracticasAnual ? parseInt(limitePracticasAnual) : null,
       activa: true,
       profesionalId: req.user.id
     });
@@ -209,7 +211,7 @@ router.post('/', async (req, res) => {
 // Editar una obra social
 router.put('/:id', async (req, res) => {
   try {
-    const { nombre, portalFacturacionId, notas, activa } = req.body;
+    const { nombre, portalFacturacionId, notas, activa, limitePracticasMensual, limitePracticasAnual } = req.body;
 
     const obraSocial = await ObraSocial.findOne({
       where: { id: req.params.id, profesionalId: req.user.id }
@@ -245,6 +247,8 @@ router.put('/:id', async (req, res) => {
       nombre: nombre ? nombre.trim() : obraSocial.nombre,
       portalFacturacionId: portalFacturacionId !== undefined ? (portalFacturacionId || null) : obraSocial.portalFacturacionId,
       notas: notas !== undefined ? (notas ? notas.trim() : null) : obraSocial.notas,
+      limitePracticasMensual: limitePracticasMensual !== undefined ? (limitePracticasMensual ? parseInt(limitePracticasMensual) : null) : obraSocial.limitePracticasMensual,
+      limitePracticasAnual: limitePracticasAnual !== undefined ? (limitePracticasAnual ? parseInt(limitePracticasAnual) : null) : obraSocial.limitePracticasAnual,
       activa: activa !== undefined ? activa : obraSocial.activa
     });
 

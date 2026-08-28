@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { Turno, Paciente } = require('../models');
+const { Op } = require('sequelize');
+const { Turno, Paciente, Profesional } = require('../models');
 const authMiddleware = require('../middlewares/authMiddleware');
 const {
   crearEventoCalendar,
@@ -11,7 +12,44 @@ const {
 // Proteger todas las rutas de turnos
 router.use(authMiddleware);
 
-// GET /api/turnos
+// GET /api/turnos/por-mes?anio=2026&mes=8
+// Obtener turnos de un mes específico (optimizado para el calendario)
+router.get('/por-mes', async (req, res) => {
+  try {
+    const { anio, mes } = req.query;
+    if (!anio || !mes) {
+      return res.status(400).json({ mensaje: 'Parámetros "anio" y "mes" son obligatorios.' });
+    }
+
+    const inicioMes = new Date(parseInt(anio), parseInt(mes) - 1, 1);
+    const finMes = new Date(parseInt(anio), parseInt(mes), 0, 23, 59, 59);
+
+    const turnos = await Turno.findAll({
+      where: {
+        profesionalId: req.user.id,
+        fechaHora: {
+          [Op.between]: [inicioMes, finMes]
+        }
+      },
+      include: [
+        {
+          model: Paciente,
+          attributes: ['id', 'nombre', 'telefono', 'emailContact']
+        }
+      ],
+      order: [['fechaHora', 'ASC']]
+    });
+
+    // Obtener horario laboral del profesional
+    const profesional = await Profesional.findByPk(req.user.id);
+    const horario = profesional.horarioLaboral || null;
+
+    res.json({ turnos, horarioLaboral: horario });
+  } catch (error) {
+    console.error('Error al obtener turnos por mes:', error);
+    res.status(500).json({ mensaje: 'Error al obtener turnos del mes.' });
+  }
+});
 // Obtener todos los turnos del profesional autenticado
 router.get('/', async (req, res) => {
   try {
@@ -62,16 +100,20 @@ router.post('/', async (req, res) => {
       estado: estado || 'Pendiente'
     });
 
-    // Intentar sincronizar con Google Calendar
-    const googleEventId = await syncTurnoToGoogleCalendar(
-      req.user.id,
-      nuevoTurno,
-      paciente.nombre
-    );
+    // Intentar sincronizar con Google Calendar (no bloquea si falla)
+    try {
+      const googleEventId = await crearEventoCalendar(
+        req.user.id,
+        nuevoTurno,
+        paciente.nombre
+      );
 
-    if (googleEventId) {
-      nuevoTurno.googleEventId = googleEventId;
-      await nuevoTurno.save();
+      if (googleEventId) {
+        nuevoTurno.googleEventId = googleEventId;
+        await nuevoTurno.save();
+      }
+    } catch (syncError) {
+      console.log('Google Calendar no configurado o error de sincronización:', syncError.message);
     }
 
     // Retornar turno creado con includes

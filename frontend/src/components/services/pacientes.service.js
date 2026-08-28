@@ -41,7 +41,7 @@ const pacientesService = {
   /**
    * Registra una nueva sesión médica vinculada a un tratamiento
    */
-  async createSesion(pacienteId, notas, archivo, presupuesto = 0, pago = 0, codigoPractica = null, piezaDental = null, caraDental = null, modalidadCobro = 'obra_social') {
+  async createSesion(pacienteId, notas, archivo, presupuesto = 0, pago = 0, practicas = [], modalidadCobro = 'obra_social', obraSocialId = null, planObraSocialId = null) {
     const formData = new FormData();
     if (notas) {
       formData.append('notas', notas);
@@ -49,10 +49,13 @@ const pacientesService = {
     formData.append('presupuesto', parseFloat(presupuesto) || 0);
     formData.append('pago', parseFloat(pago) || 0);
     
-    if (codigoPractica) formData.append('codigoPractica', codigoPractica);
-    if (piezaDental) formData.append('piezaDental', piezaDental);
-    if (caraDental) formData.append('caraDental', caraDental);
+    if (practicas && practicas.length > 0) {
+      formData.append('practicas', JSON.stringify(practicas));
+    }
+    
     formData.append('modalidadCobro', modalidadCobro);
+    if (obraSocialId) formData.append('obraSocialId', obraSocialId);
+    if (planObraSocialId) formData.append('planObraSocialId', planObraSocialId);
 
     if (archivo) {
       formData.append('archivo', archivo);

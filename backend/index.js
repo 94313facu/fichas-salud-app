@@ -23,6 +23,7 @@ const obrasSocialesRoutes = require('./routes/obrasSociales');
 const turnosRoutes = require('./routes/turnos');
 const practicasRoutes = require('./routes/practicas');
 const facturacionRoutes = require('./routes/facturacion');
+const configuracionRoutes = require('./routes/configuracion');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', pacientesRoutes);
@@ -30,6 +31,7 @@ app.use('/api/obras-sociales', obrasSocialesRoutes);
 app.use('/api/turnos', turnosRoutes);
 app.use('/api/practicas', practicasRoutes);
 app.use('/api/facturacion', facturacionRoutes);
+app.use('/api/configuracion', configuracionRoutes);
 
 // Ruta de diagnóstico simple
 app.get('/health', (req, res) => {
@@ -42,7 +44,7 @@ app.listen(PORT, () => {
 });
 
 sequelize
-  .sync({ alter: true })
+  .sync()
   .then(() => {
     console.log('Base de datos sincronizada con éxito.');
     // Inicializar tarea cron para respaldos diarios en Google Drive

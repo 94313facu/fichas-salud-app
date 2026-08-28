@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import turnosService from './services/turnos.service';
 import pacientesService from './services/pacientes.service';
+import configuracionService from './services/configuracion.service';
+import CalendarioTurnos from './CalendarioTurnos';
 
 const Turnos = () => {
   const [turnos, setTurnos] = useState([]);
@@ -9,6 +11,9 @@ const Turnos = () => {
   const [tratamientosPaciente, setTratamientosPaciente] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+
+  // Vista: 'calendario' | 'lista'
+  const [vistaActiva, setVistaActiva] = useState('calendario');
 
   // Estados para nuevo turno / modal
   const [showModal, setShowModal] = useState(false);
@@ -19,9 +24,24 @@ const Turnos = () => {
   const [notas, setNotas] = useState('');
   const [estado, setEstado] = useState('Pendiente');
 
+  // Configuración de horarios
+  const [showConfigHorario, setShowConfigHorario] = useState(false);
+  const [horarioLaboral, setHorarioLaboral] = useState(null);
+  const [guardandoHorario, setGuardandoHorario] = useState(false);
+
   // Mensajes de feedback
   const [mensajeExito, setMensajeExito] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  const DIAS_LABEL = {
+    lunes: 'Lunes',
+    martes: 'Martes',
+    miercoles: 'Miércoles',
+    jueves: 'Jueves',
+    viernes: 'Viernes',
+    sabado: 'Sábado',
+    domingo: 'Domingo'
+  };
 
   // Cargar turnos y pacientes
   const cargarDatos = async () => {
@@ -40,8 +60,18 @@ const Turnos = () => {
     }
   };
 
+  const cargarHorario = async () => {
+    try {
+      const data = await configuracionService.getHorarioLaboral();
+      setHorarioLaboral(data);
+    } catch (err) {
+      console.error('Error al cargar horario:', err);
+    }
+  };
+
   useEffect(() => {
     cargarDatos();
+    cargarHorario();
   }, []);
 
   // Cargar tratamientos al cambiar paciente en el modal
@@ -141,6 +171,38 @@ const Turnos = () => {
     }
   };
 
+  // Slot click desde el calendario → abrir modal con fecha precargada
+  const handleSlotClick = (fechaHoraISO) => {
+    setFechaHora(fechaHoraISO.substring(0, 16)); // "YYYY-MM-DDTHH:mm"
+    setShowModal(true);
+  };
+
+  // Guardar configuración de horario
+  const handleGuardarHorario = async () => {
+    try {
+      setGuardandoHorario(true);
+      setErrorMsg('');
+      await configuracionService.updateHorarioLaboral(horarioLaboral);
+      setMensajeExito('Horario laboral guardado correctamente.');
+      setShowConfigHorario(false);
+      setTimeout(() => setMensajeExito(''), 4000);
+    } catch (err) {
+      setErrorMsg(err.mensaje || 'Error al guardar el horario.');
+    } finally {
+      setGuardandoHorario(false);
+    }
+  };
+
+  const updateHorarioDia = (dia, campo, valor) => {
+    setHorarioLaboral(prev => ({
+      ...prev,
+      [dia]: {
+        ...prev[dia],
+        [campo]: valor
+      }
+    }));
+  };
+
   return (
     <div className="container py-4">
       {/* Cabecera */}
@@ -154,13 +216,43 @@ const Turnos = () => {
           </h2>
         </div>
 
-        <button
-          className="btn btn-accent text-white px-4 d-flex align-items-center justify-content-center"
-          onClick={() => setShowModal(true)}
-          style={{ minHeight: '44px' }}
-        >
-          <i className="bi bi-calendar-plus me-2"></i> Agendar Nuevo Turno
-        </button>
+        <div className="d-flex align-items-center gap-2">
+          {/* Toggle Vista */}
+          <div className="cal-vista-toggle">
+            <button
+              className={vistaActiva === 'calendario' ? 'activo' : ''}
+              onClick={() => setVistaActiva('calendario')}
+              title="Vista Calendario"
+            >
+              <i className="bi bi-calendar3 me-1"></i> Calendario
+            </button>
+            <button
+              className={vistaActiva === 'lista' ? 'activo' : ''}
+              onClick={() => setVistaActiva('lista')}
+              title="Vista Lista"
+            >
+              <i className="bi bi-list-ul me-1"></i> Lista
+            </button>
+          </div>
+
+          {/* Botón configurar horario */}
+          <button
+            className="btn btn-outline-primary d-flex align-items-center px-3"
+            onClick={() => setShowConfigHorario(true)}
+            style={{ height: '40px', fontSize: '0.88rem' }}
+            title="Configurar horarios de atención"
+          >
+            <i className="bi bi-gear me-1"></i> Horarios
+          </button>
+
+          <button
+            className="btn btn-accent text-white px-4 d-flex align-items-center justify-content-center"
+            onClick={() => setShowModal(true)}
+            style={{ minHeight: '44px' }}
+          >
+            <i className="bi bi-calendar-plus me-2"></i> Agendar Nuevo Turno
+          </button>
+        </div>
       </div>
 
       {/* Alertas */}
@@ -178,94 +270,108 @@ const Turnos = () => {
         </div>
       )}
 
-      {/* Listado de Turnos */}
-      <div className="card p-4 border-0 shadow-sm">
-        {cargando ? (
-          <div className="text-center py-5">
-            <div className="spinner-border spinner-primary" role="status">
-              <span className="visually-hidden">Cargando agenda...</span>
+      {/* ======================== */}
+      {/* VISTA CALENDARIO */}
+      {/* ======================== */}
+      {vistaActiva === 'calendario' && (
+        <CalendarioTurnos
+          onSlotClick={handleSlotClick}
+          modoSeleccion={true}
+        />
+      )}
+
+      {/* ======================== */}
+      {/* VISTA LISTA */}
+      {/* ======================== */}
+      {vistaActiva === 'lista' && (
+        <div className="card p-4 border-0 shadow-sm">
+          {cargando ? (
+            <div className="text-center py-5">
+              <div className="spinner-border spinner-primary" role="status">
+                <span className="visually-hidden">Cargando agenda...</span>
+              </div>
+              <p className="mt-2 text-muted-custom">Cargando turnos agendados...</p>
             </div>
-            <p className="mt-2 text-muted-custom">Cargando turnos agendados...</p>
-          </div>
-        ) : turnos.length > 0 ? (
-          <div className="d-flex flex-column gap-3">
-            {turnos.map((t) => (
-              <div key={t.id} className="p-3 border rounded bg-white shadow-sm d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-                
-                {/* Datos del Turno */}
-                <div>
-                  <div className="d-flex align-items-center gap-2 mb-1">
-                    <span className="badge bg-primary text-white p-2 fs-6">
-                      <i className="bi bi-clock me-1"></i> {formatearFechaHora(t.fechaHora)}
-                    </span>
-                    <span className="badge bg-light text-dark border">
-                      {t.duracionMinutos} min
-                    </span>
-                    {t.googleEventId && (
-                      <span className="badge bg-light text-success border border-success" title="Sincronizado con Google Calendar">
-                        <i className="bi bi-google me-1"></i> Calendar
+          ) : turnos.length > 0 ? (
+            <div className="d-flex flex-column gap-3">
+              {turnos.map((t) => (
+                <div key={t.id} className="p-3 border rounded bg-white shadow-sm d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                  
+                  {/* Datos del Turno */}
+                  <div>
+                    <div className="d-flex align-items-center gap-2 mb-1">
+                      <span className="badge bg-primary text-white p-2 fs-6">
+                        <i className="bi bi-clock me-1"></i> {formatearFechaHora(t.fechaHora)}
                       </span>
+                      <span className="badge bg-light text-dark border">
+                        {t.duracionMinutos} min
+                      </span>
+                      {t.googleEventId && (
+                        <span className="badge bg-light text-success border border-success" title="Sincronizado con Google Calendar">
+                          <i className="bi bi-google me-1"></i> Calendar
+                        </span>
+                      )}
+                    </div>
+
+                    <h4 className="fs-5 mb-1 font-weight-bold text-dark">
+                      <Link to={`/pacientes/${t.Paciente?.id}`} className="text-decoration-none text-dark">
+                        {t.Paciente?.nombre || 'Paciente sin nombre'}
+                      </Link>
+                    </h4>
+
+                    {t.Tratamiento && (
+                      <span className="badge bg-light text-primary border mb-2 d-inline-block">
+                        <i className="bi bi-folder-fill me-1"></i> {t.Tratamiento.nombre}
+                      </span>
+                    )}
+
+                    {t.notas && (
+                      <p className="mb-0 text-muted-custom" style={{ fontSize: '0.9rem' }}>
+                        <i className="bi bi-chat-left-text me-1"></i> {t.notas}
+                      </p>
                     )}
                   </div>
 
-                  <h4 className="fs-5 mb-1 font-weight-bold text-dark">
-                    <Link to={`/pacientes/${t.Paciente?.id}`} className="text-decoration-none text-dark">
-                      {t.Paciente?.nombre || 'Paciente sin nombre'}
-                    </Link>
-                  </h4>
+                  {/* Acciones y Estado */}
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    {/* Selector de Estado */}
+                    <select
+                      className={`form-select form-select-sm font-weight-bold ${
+                        t.estado === 'Confirmado' ? 'bg-primary-light text-primary border-primary' :
+                        t.estado === 'Atendido' ? 'bg-success-light text-success border-success' :
+                        t.estado === 'Cancelado' ? 'bg-danger-light text-danger border-danger' : 'bg-light text-dark border'
+                      }`}
+                      style={{ minWidth: '130px', height: '36px' }}
+                      value={t.estado}
+                      onChange={(e) => handleCambiarEstado(t.id, e.target.value)}
+                    >
+                      <option value="Pendiente">Pendiente</option>
+                      <option value="Confirmado">Confirmado</option>
+                      <option value="Atendido">Atendido</option>
+                      <option value="Cancelado">Cancelado</option>
+                    </select>
 
-                  {t.Tratamiento && (
-                    <span className="badge bg-light text-primary border mb-2 d-inline-block">
-                      <i className="bi bi-folder-fill me-1"></i> {t.Tratamiento.nombre}
-                    </span>
-                  )}
+                    <button
+                      className="btn btn-outline-danger btn-sm p-2 d-flex align-items-center"
+                      title="Cancelar turno"
+                      onClick={() => handleEliminarTurno(t.id)}
+                      style={{ height: '36px' }}
+                    >
+                      <i className="bi bi-trash"></i>
+                    </button>
+                  </div>
 
-                  {t.notas && (
-                    <p className="mb-0 text-muted-custom" style={{ fontSize: '0.9rem' }}>
-                      <i className="bi bi-chat-left-text me-1"></i> {t.notas}
-                    </p>
-                  )}
                 </div>
-
-                {/* Acciones y Estado */}
-                <div className="d-flex align-items-center gap-2 flex-wrap">
-                  {/* Selector de Estado */}
-                  <select
-                    className={`form-select form-select-sm font-weight-bold ${
-                      t.estado === 'Confirmado' ? 'bg-primary-light text-primary border-primary' :
-                      t.estado === 'Atendido' ? 'bg-success-light text-success border-success' :
-                      t.estado === 'Cancelado' ? 'bg-danger-light text-danger border-danger' : 'bg-light text-dark border'
-                    }`}
-                    style={{ minWidth: '130px', height: '36px' }}
-                    value={t.estado}
-                    onChange={(e) => handleCambiarEstado(t.id, e.target.value)}
-                  >
-                    <option value="Pendiente">Pendiente</option>
-                    <option value="Confirmado">Confirmado</option>
-                    <option value="Atendido">Atendido</option>
-                    <option value="Cancelado">Cancelado</option>
-                  </select>
-
-                  <button
-                    className="btn btn-outline-danger btn-sm p-2 d-flex align-items-center"
-                    title="Cancelar turno"
-                    onClick={() => handleEliminarTurno(t.id)}
-                    style={{ height: '36px' }}
-                  >
-                    <i className="bi bi-trash"></i>
-                  </button>
-                </div>
-
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-5 bg-light rounded">
-            <i className="bi bi-calendar-x fs-1 text-muted"></i>
-            <p className="mt-2 text-muted-custom mb-0">No tienes turnos agendados en este momento.</p>
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-5 bg-light rounded">
+              <i className="bi bi-calendar-x fs-1 text-muted"></i>
+              <p className="mt-2 text-muted-custom mb-0">No tienes turnos agendados en este momento.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* MODAL: AGENDAR NUEVO TURNO */}
       {showModal && (
@@ -341,6 +447,8 @@ const Turnos = () => {
                         <option value="30">30 min</option>
                         <option value="45">45 min</option>
                         <option value="60">60 min (1 hora)</option>
+                        <option value="90">90 min</option>
+                        <option value="120">120 min (2 horas)</option>
                       </select>
                     </div>
                   </div>
@@ -390,6 +498,92 @@ const Turnos = () => {
                     </>
                   ) : (
                     'Agendar Turno'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIGURACIÓN DE HORARIOS */}
+      {showConfigHorario && horarioLaboral && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 1050 }} tabIndex="-1" role="dialog">
+          <div className="modal-dialog modal-dialog-centered modal-lg" role="document">
+            <div className="modal-content border-0 rounded-3 shadow-lg">
+              <div className="modal-header bg-primary text-white py-3">
+                <h5 className="modal-title font-weight-bold">
+                  <i className="bi bi-gear-fill me-2"></i> Configurar Horarios de Atención
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowConfigHorario(false)} aria-label="Cerrar"></button>
+              </div>
+
+              <div className="modal-body p-4">
+                <p className="text-muted mb-3" style={{ fontSize: '0.9rem' }}>
+                  <i className="bi bi-info-circle me-1"></i>
+                  Configurá los días y horarios en los que atendés. El calendario usará estos datos para mostrar la disponibilidad.
+                </p>
+
+                <div className="d-flex flex-column">
+                  {Object.entries(DIAS_LABEL).map(([dia, label]) => {
+                    const config = horarioLaboral[dia] || { activo: false, inicio: '08:00', fin: '20:00' };
+                    return (
+                      <div key={dia} className={`horario-dia-row ${!config.activo ? 'horario-dia-inactivo' : ''}`}>
+                        <div className="horario-dia-nombre">{label}</div>
+                        <div className="form-check form-switch horario-dia-toggle">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            role="switch"
+                            id={`toggle-${dia}`}
+                            checked={config.activo}
+                            onChange={(e) => updateHorarioDia(dia, 'activo', e.target.checked)}
+                          />
+                          <label className="form-check-label small" htmlFor={`toggle-${dia}`}>
+                            {config.activo ? 'Atiendo' : 'No atiendo'}
+                          </label>
+                        </div>
+                        {config.activo && (
+                          <div className="horario-dia-inputs">
+                            <input
+                              type="time"
+                              className="form-control form-control-sm"
+                              value={config.inicio}
+                              onChange={(e) => updateHorarioDia(dia, 'inicio', e.target.value)}
+                            />
+                            <span className="text-muted">a</span>
+                            <input
+                              type="time"
+                              className="form-control form-control-sm"
+                              value={config.fin}
+                              onChange={(e) => updateHorarioDia(dia, 'fin', e.target.value)}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="modal-footer bg-light border-top">
+                <button type="button" className="btn btn-secondary px-4" onClick={() => setShowConfigHorario(false)} style={{ height: '44px' }}>
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary px-4"
+                  style={{ height: '44px' }}
+                  disabled={guardandoHorario}
+                  onClick={handleGuardarHorario}
+                >
+                  {guardandoHorario ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                      Guardando...
+                    </>
+                  ) : (
+                    <><i className="bi bi-check-lg me-1"></i> Guardar Horarios</>
                   )}
                 </button>
               </div>
