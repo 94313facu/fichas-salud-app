@@ -126,7 +126,7 @@ const FichaPaciente = () => {
       setErrorMsg('');
 
       // 2. Ejecutar validación de frecuencia
-      if (codigoPractica.trim()) {
+      if (codigoPractica.trim() && sesionObraSocialId) {
         const val = await practicasService.validarFrecuencia(
           id,
           codigoPractica.trim(),
@@ -166,12 +166,43 @@ const FichaPaciente = () => {
     }
   };
 
-  const ejecutarGuardarSesion = async (modalidadCobro = 'obra_social') => {
+  const ejecutarGuardarSesion = async (modalidadCobro = 'obra_social', skipValidation = false) => {
     try {
-      // Si la lista está vacía, exigimos una nota o un archivo
-      if (practicasSesion.length === 0 && !notas.trim() && !archivo) {
-        setErrorMsg('Debes registrar al menos una práctica, nota o archivo para guardar la sesión.');
-        return;
+      let practicasFinales = [...practicasSesion];
+
+      // Si no hay prácticas agregadas a la lista pero los inputs tienen algo, auto-agregamos la práctica (con validación)
+      if (practicasFinales.length === 0) {
+        if (codigoPractica.trim() && nombrePractica.trim()) {
+          setGuardando(true);
+          
+          if (!skipValidation && modalidadCobro !== 'particular') {
+            const val = await practicasService.validarFrecuencia(
+              id,
+              codigoPractica.trim(),
+              piezaDental,
+              caraDental,
+              null,
+              sesionObraSocialId ? parseInt(sesionObraSocialId) : null
+            );
+
+            if (!val.valido) {
+              setValidacionResult(val);
+              setShowAdvertencia(true);
+              setGuardando(false);
+              return;
+            }
+          }
+
+          practicasFinales = [{
+            codigoPractica: codigoPractica.trim(),
+            nombrePractica: nombrePractica.trim(),
+            piezaDental: piezaDental.trim(),
+            caraDental: caraDental.trim()
+          }];
+        } else {
+          setErrorMsg('Debes registrar al menos una práctica para guardar la sesión. Selecciona una y haz clic en "Agregar Práctica".');
+          return;
+        }
       }
 
       setGuardando(true);
@@ -189,16 +220,24 @@ const FichaPaciente = () => {
         }
       }
 
+      // Preguntar si se va a facturar si es particular
+      let estadoFacturacion = null;
+      if (modalidadCobro === 'particular') {
+        const deseaFacturar = window.confirm('¿Desea generar un registro en Facturación para esta práctica particular? \n\n(Aceptar = Sí, requiere factura; Cancelar = No requiere factura)');
+        estadoFacturacion = deseaFacturar ? 'pendiente' : 'particular';
+      }
+
       await pacientesService.createSesion(
         id,
         notas,
         archivo,
         presupuesto || 0,
         pago || 0,
-        practicasSesion,
+        practicasFinales,
         modalidadCobro,
         sesionObraSocialId ? parseInt(sesionObraSocialId) : null,
-        planId ? parseInt(planId) : null
+        planId ? parseInt(planId) : null,
+        estadoFacturacion
       );
       
       // Limpiar formulario
@@ -221,7 +260,7 @@ const FichaPaciente = () => {
 
       setTimeout(() => setMensajeExito(''), 4000);
     } catch (err) {
-      setErrorMsg(err.mensaje || 'Error al guardar la sesión.');
+      setErrorMsg(err.mensaje + (err.error ? ': ' + err.error : '') || 'Error al guardar la sesión.');
     } finally {
       setGuardando(false);
     }
@@ -412,8 +451,12 @@ const FichaPaciente = () => {
         <div className="d-flex align-items-center gap-2">
           <span className="badge bg-light text-dark border p-2 fs-6">
             <i className="bi bi-card-checklist text-accent me-1"></i>
-            {paciente.ObraSocial?.nombre || 'Particular'}
-            {paciente.PlanObraSocial ? ` - ${paciente.PlanObraSocial.nombre}` : (paciente.planObraSocial ? ` - ${paciente.planObraSocial}` : '')}
+            {paciente.ObrasSocialesAsociadas?.length > 0
+              ? paciente.ObrasSocialesAsociadas.map(os => `${os.ObraSocial?.nombre}${os.PlanObraSocial ? ` - ${os.PlanObraSocial.nombre}` : ''}`).join(' | ')
+              : (paciente.ObraSocial?.nombre 
+                  ? `${paciente.ObraSocial.nombre}${paciente.PlanObraSocial ? ` - ${paciente.PlanObraSocial.nombre}` : (paciente.planObraSocial ? ` - ${paciente.planObraSocial}` : '')}`
+                  : 'Particular')
+            }
           </span>
           <button 
             className="btn btn-primary d-flex align-items-center gap-1"
@@ -483,7 +526,7 @@ const FichaPaciente = () => {
             role="tab"
             style={{ backgroundColor: 'transparent', borderBottom: activeTab === 'facturacion' ? '3px solid var(--primary-color) !important' : 'none' }}
           >
-            <i className="bi bi-receipt-cutoff me-1"></i> Facturación <span className="badge bg-warning text-dark rounded-pill ms-1 fact-tab-badge">{(paciente.Sesions || []).filter(s => s.estadoFacturacion === 'pendiente' && s.codigoPractica && s.modalidadCobro === 'obra_social').length}</span>
+            <i className="bi bi-receipt-cutoff me-1"></i> Facturación <span className="badge bg-warning text-dark rounded-pill ms-1 fact-tab-badge">{(paciente.Sesions || []).filter(s => s.estadoFacturacion === 'pendiente' && s.codigoPractica).length}</span>
           </button>
         </li>
       </ul>
@@ -715,7 +758,7 @@ const FichaPaciente = () => {
                     type="button" 
                     className="btn btn-primary w-100 py-2 fs-5 mt-4 text-white shadow-sm" 
                     onClick={() => ejecutarGuardarSesion(sesionObraSocialId ? 'obra_social' : 'particular')} 
-                    disabled={guardando || (practicasSesion.length === 0 && !notas && !archivo)}
+                    disabled={guardando || (practicasSesion.length === 0 && !notas && !archivo && !codigoPractica.trim())}
                   >
                     {guardando ? (
                       <>
@@ -833,9 +876,13 @@ const FichaPaciente = () => {
                             <div key={idx} className="mt-2 text-dark bg-light px-2 py-1 rounded d-inline-block border small mb-2 me-2">
                               <i className="bi bi-tag me-1 text-primary"></i>Cód: <strong>{p.codigoPractica}</strong>
                               <span className="ms-1 text-muted">({catalogoPracticas.find(c => c.codigo.toLowerCase() === p.codigoPractica?.toLowerCase())?.nombre || 'Práctica no catalogada'})</span>
-                              {idx === 0 && sesion.obraSocialId && (
+                              {sesion.obraSocialId ? (
                                 <span className="badge bg-secondary ms-2" title="Obra Social usada para facturar">
                                   {sesion.ObraSocialSesion?.nombre || 'Obra Social'}
+                                </span>
+                              ) : (
+                                <span className="badge bg-info text-white ms-2" title="Modalidad de cobro">
+                                  Particular
                                 </span>
                               )}
                             </div>
@@ -1282,7 +1329,7 @@ const FichaPaciente = () => {
             </div>
             
             {(() => {
-              const sesionesFacturables = (paciente.Sesions || []).filter(s => s.codigoPractica && s.codigoPractica.trim() !== '' && s.modalidadCobro === 'obra_social');
+              const sesionesFacturables = (paciente.Sesions || []).filter(s => s.codigoPractica && s.codigoPractica.trim() !== '');
               
               if (sesionesFacturables.length === 0) {
                 return (
@@ -1329,6 +1376,15 @@ const FichaPaciente = () => {
                                 <span className="badge bg-white text-dark border">
                                   <i className="bi bi-tag me-1 text-primary"></i>Cód: <strong>{sesion.codigoPractica}</strong>
                                   <span className="ms-1 text-muted">({catalogoPracticas.find(p => p.codigo.toLowerCase() === sesion.codigoPractica.toLowerCase())?.nombre || 'Práctica no catalogada'})</span>
+                                  {sesion.obraSocialId ? (
+                                    <span className="badge bg-secondary ms-2" title="Obra Social">
+                                      {sesion.ObraSocialSesion?.nombre || 'Obra Social'}
+                                    </span>
+                                  ) : (
+                                    <span className="badge bg-info text-white ms-2" title="Modalidad de cobro">
+                                      Particular
+                                    </span>
+                                  )}
                                 </span>
                                 {sesion.piezaDental && (
                                   <span className="badge bg-white text-dark border">
@@ -1393,6 +1449,7 @@ const FichaPaciente = () => {
         onHide={() => setShowEditPaciente(false)}
         paciente={paciente}
         obrasSociales={obrasSociales}
+        setObrasSociales={setObrasSociales}
         onSave={handlePacienteGuardado}
       />
 
@@ -1415,11 +1472,11 @@ const FichaPaciente = () => {
         resultadoValidacion={validacionResult}
         onConfirmParticular={async () => {
           setShowAdvertencia(false);
-          await ejecutarGuardarSesion('particular');
+          await ejecutarGuardarSesion('particular', true);
         }}
         onConfirmObraSocial={async () => {
           setShowAdvertencia(false);
-          await ejecutarGuardarSesion('obra_social');
+          await ejecutarGuardarSesion('obra_social', true);
         }}
       />
 

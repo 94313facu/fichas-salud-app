@@ -63,11 +63,14 @@ const slotOcupado = (slotHora, turnosDelDia) => {
  */
 const CalendarioTurnos = ({
   onSlotClick,
+  onEditClick,
+  onDeleteClick,
   pacienteId = null,
   modoSeleccion = false,
   compacto = false,
   turnosExternos = null,
-  horarioExterno = null
+  horarioExterno = null,
+  refreshTrigger = 0
 }) => {
   const hoy = new Date();
   const [mesActual, setMesActual] = useState(hoy.getMonth());
@@ -95,7 +98,7 @@ const CalendarioTurnos = ({
     } finally {
       setCargando(false);
     }
-  }, [anioActual, mesActual, turnosExternos, horarioExterno]);
+  }, [anioActual, mesActual, turnosExternos, horarioExterno, refreshTrigger]);
 
   useEffect(() => {
     cargarMes();
@@ -193,7 +196,10 @@ const CalendarioTurnos = ({
         className={`cal-celda cal-celda-dia ${claseEstado} ${esHoy ? 'cal-dia-hoy' : ''} ${esSeleccionado ? 'cal-dia-seleccionado' : ''} ${info.estado !== 'inactivo' ? 'cal-celda-clickable' : ''}`}
         onClick={() => info.estado !== 'inactivo' && setDiaSeleccionado(d)}
       >
-        <span className="cal-dia-numero">{d}</span>
+        <div className="d-flex flex-column align-items-end w-100">
+          <span className="cal-dia-numero">{d}</span>
+          {info.estado === 'completo' && <span className="cal-badge-lleno">(lleno)</span>}
+        </div>
         {info.estado !== 'inactivo' && (
           <div className="cal-dia-indicadores">
             {info.turnosDelDia.length > 0 && (
@@ -261,33 +267,64 @@ const CalendarioTurnos = ({
               const esMiPaciente = pacienteId && turnoEnSlot.Paciente?.id === parseInt(pacienteId);
 
               return (
-                <div key={idx} className={`cal-slot cal-slot-ocupado ${esMiPaciente ? 'cal-slot-mi-paciente' : ''}`}>
-                  <div className="cal-slot-hora">
-                    <i className="bi bi-clock-fill me-1"></i>
-                    {slotHora} - {horaFinStr}
-                  </div>
-                  <div className="cal-slot-info">
-                    <span className="cal-slot-paciente">
-                      <i className="bi bi-person-fill me-1"></i>
-                      {turnoEnSlot.Paciente?.nombre || 'Paciente'}
-                    </span>
-                    <span className={`cal-slot-estado badge ${
-                      turnoEnSlot.estado === 'Confirmado' ? 'bg-primary' :
-                      turnoEnSlot.estado === 'Atendido' ? 'bg-success' :
-                      'bg-warning text-dark'
-                    }`}>
-                      {turnoEnSlot.estado}
-                    </span>
-                  </div>
-                  {turnoEnSlot.notas && (
-                    <div className="cal-slot-notas text-muted">
-                      <small><i className="bi bi-chat-left-text me-1"></i>{turnoEnSlot.notas}</small>
+                <div key={idx} 
+                     className={`cal-slot cal-slot-ocupado ${esMiPaciente ? 'cal-slot-mi-paciente' : ''}`}
+                     onClick={() => window.alert(`No puedes agendar un turno a las ${slotHora} porque se superpone con un turno que ya tienes programado (${turnoEnSlot.duracionMinutos} min).`)}
+                     style={{ cursor: 'pointer' }}
+                >
+                  <div className="d-flex w-100 justify-content-between align-items-center">
+                    <div>
+                      <div className="cal-slot-hora">
+                        <i className="bi bi-clock-fill me-1"></i>
+                        {slotHora} - {horaFinStr}
+                      </div>
+                      <div className="cal-slot-info mt-1">
+                        <span className="cal-slot-paciente">
+                          <i className="bi bi-person-fill me-1"></i>
+                          {turnoEnSlot.Paciente?.nombre || 'Paciente'}
+                        </span>
+                        <span className={`cal-slot-estado badge ms-2 ${
+                          turnoEnSlot.estado === 'Confirmado' ? 'bg-primary' :
+                          turnoEnSlot.estado === 'Atendido' ? 'bg-success' :
+                          'bg-warning text-dark'
+                        }`}>
+                          {turnoEnSlot.estado}
+                        </span>
+                      </div>
+                      {turnoEnSlot.notas && (
+                        <div className="cal-slot-notas text-muted mt-1">
+                          <small><i className="bi bi-chat-left-text me-1"></i>{turnoEnSlot.notas}</small>
+                        </div>
+                      )}
+                      <div className="cal-slot-duracion mt-1">
+                        <small className="text-muted">
+                          <i className="bi bi-hourglass-split me-1"></i>{duracion} min
+                        </small>
+                      </div>
                     </div>
-                  )}
-                  <div className="cal-slot-duracion">
-                    <small className="text-muted">
-                      <i className="bi bi-hourglass-split me-1"></i>{duracion} min
-                    </small>
+
+                    <div className="d-flex flex-column gap-2 ms-3">
+                      {onEditClick && (
+                        <button 
+                          className="btn btn-sm btn-outline-primary p-1"
+                          onClick={(e) => { e.stopPropagation(); onEditClick(turnoEnSlot); }}
+                          title="Editar turno"
+                          style={{ width: '32px', height: '32px' }}
+                        >
+                          <i className="bi bi-pencil"></i>
+                        </button>
+                      )}
+                      {onDeleteClick && (
+                        <button 
+                          className="btn btn-sm btn-outline-danger p-1"
+                          onClick={(e) => { e.stopPropagation(); onDeleteClick(turnoEnSlot.id); }}
+                          title="Eliminar turno"
+                          style={{ width: '32px', height: '32px' }}
+                        >
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

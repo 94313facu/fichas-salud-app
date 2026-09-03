@@ -15,6 +15,44 @@ const upload = multer({
 // Proteger todas las rutas de pacientes con el middleware de autenticación
 router.use(authMiddleware);
 
+// GET /api/pacientes/proximo-numero-ficha
+// Obtiene el próximo número de historia clínica (ficha) sugerido
+router.get('/proximo-numero-ficha', async (req, res) => {
+  try {
+    const pacientes = await Paciente.findAll({
+      where: { profesionalId: req.user.id },
+      attributes: ['numeroFicha']
+    });
+
+    let maxNum = -1;
+    pacientes.forEach(p => {
+      if (p.numeroFicha) {
+        // Formato esperado: HC-000000
+        const match = p.numeroFicha.match(/^HC-(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num;
+          }
+        } else {
+          // Si por alguna razón hay números viejos sin "HC-"
+          const num = parseInt(p.numeroFicha, 10);
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num;
+          }
+        }
+      }
+    });
+
+    const nextNum = maxNum + 1;
+    const formatted = `HC-${nextNum.toString().padStart(6, '0')}`;
+    res.json({ proximoNumeroFicha: formatted });
+  } catch (error) {
+    console.error('Error al calcular próximo número de ficha:', error);
+    res.status(500).json({ mensaje: 'Error al calcular próximo número de ficha.' });
+  }
+});
+
 // GET /api/pacientes
 // Obtener todos los pacientes del profesional con su obra social asociada
 router.get('/', async (req, res) => {
@@ -427,13 +465,45 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// DELETE /api/pacientes/:id
+// Eliminar un paciente
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const paciente = await Paciente.findOne({
+      where: { id, profesionalId: req.user.id }
+    });
+
+    if (!paciente) {
+      return res.status(404).json({ mensaje: 'Paciente no encontrado o acceso no autorizado.' });
+    }
+
+    // Eliminación manual en cascada para evitar errores de restricción de clave foránea en SQLite
+    if (PacienteObraSocial) {
+      await PacienteObraSocial.destroy({ where: { pacienteId: id } });
+    }
+    if (Sesion) {
+      await Sesion.destroy({ where: { pacienteId: id } });
+    }
+    if (Turno) {
+      await Turno.destroy({ where: { pacienteId: id } });
+    }
+
+    await paciente.destroy();
+    res.json({ mensaje: 'Paciente eliminado exitosamente.' });
+  } catch (error) {
+    console.error('Error al eliminar paciente:', error);
+    res.status(500).json({ mensaje: 'Error al eliminar el paciente.' });
+  }
+});
+
 // (Rutas de tratamientos eliminadas)
 // POST /api/pacientes/:id/sesiones
 // Registrar una nueva evolución
 router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { notas, presupuesto, pago, codigoPractica, piezaDental, caraDental, modalidadCobro, obraSocialId: sesionObraSocialId, planObraSocialId: sesionPlanObraSocialId } = req.body;
+    const { notas, presupuesto, pago, codigoPractica, piezaDental, caraDental, modalidadCobro, obraSocialId: sesionObraSocialId, planObraSocialId: sesionPlanObraSocialId, estadoFacturacion } = req.body;
 
     // Verificar paciente
     const paciente = await Paciente.findOne({
@@ -495,6 +565,7 @@ router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
       caraDental: legacyCara || (caraDental ? caraDental.trim() : null),
       practicasMultiples: practicasJSON,
       modalidadCobro: modalidadCobro || 'obra_social',
+      estadoFacturacion: estadoFacturacion || 'pendiente',
       obraSocialId: sesionObraSocialId ? parseInt(sesionObraSocialId) : null,
       planObraSocialId: sesionPlanObraSocialId ? parseInt(sesionPlanObraSocialId) : null,
       pacienteId: paciente.id

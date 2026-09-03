@@ -139,7 +139,7 @@ router.post('/', async (req, res) => {
 // Ahora soporta multi-OS: recibe el obraSocialId explícito con el que se va a facturar
 router.post('/validar-frecuencia', async (req, res) => {
   try {
-    const { pacienteId, codigoPractica, piezaDental, caraDental, fechaEv, obraSocialId: obraSocialIdParam } = req.body;
+    const { pacienteId, codigoPractica, piezaDental, caraDental, fechaEv, obraSocialId: obraSocialIdParam, planObraSocialId: planObraSocialIdParam } = req.body;
 
     if (!pacienteId || !codigoPractica) {
       return res.status(400).json({ mensaje: 'pacienteId y codigoPractica son requeridos.' });
@@ -325,7 +325,7 @@ router.post('/validar-frecuencia', async (req, res) => {
     res.json({ valido: true, motivo: 'Cumple el período mínimo de refacturación' });
   } catch (error) {
     console.error('Error al validar frecuencia de práctica:', error);
-    res.status(500).json({ mensaje: 'Error al ejecutar el motor de validación de frecuencia.' });
+    res.status(500).json({ mensaje: 'Error al ejecutar el motor de validación de frecuencia.', error: error.message, stack: error.stack });
   }
 });
 

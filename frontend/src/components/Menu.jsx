@@ -65,6 +65,11 @@ const Menu = () => {
                       <i className="bi bi-receipt-cutoff me-1"></i>Facturación
                     </Link>
                   </li>
+                  <li className="nav-item">
+                    <Link className={`nav-link ${isActive('/config-whatsapp') ? 'active fw-bold' : ''}`} to="/config-whatsapp" onClick={() => setMenuOpen(false)}>
+                      <i className="bi bi-whatsapp me-1"></i>WhatsApp
+                    </Link>
+                  </li>
                 </ul>
 
                 <div className="d-flex align-items-center gap-3 ms-auto">

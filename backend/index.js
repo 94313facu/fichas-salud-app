@@ -3,6 +3,8 @@ const cors = require('cors');
 const path = require('path');
 const { sequelize } = require('./models');
 const { iniciarCronRespaldos } = require('./config/cronBackup');
+const whatsappService = require('./services/whatsapp.service');
+const cronService = require('./services/cron.service');
 require('dotenv').config();
 
 const app = express();
@@ -24,6 +26,7 @@ const turnosRoutes = require('./routes/turnos');
 const practicasRoutes = require('./routes/practicas');
 const facturacionRoutes = require('./routes/facturacion');
 const configuracionRoutes = require('./routes/configuracion');
+const whatsappRoutes = require('./routes/whatsapp');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', pacientesRoutes);
@@ -32,6 +35,7 @@ app.use('/api/turnos', turnosRoutes);
 app.use('/api/practicas', practicasRoutes);
 app.use('/api/facturacion', facturacionRoutes);
 app.use('/api/configuracion', configuracionRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 
 // Ruta de diagnóstico simple
 app.get('/health', (req, res) => {
@@ -47,8 +51,10 @@ sequelize
   .sync()
   .then(() => {
     console.log('Base de datos sincronizada con éxito.');
-    // Inicializar tarea cron para respaldos diarios en Google Drive
+    // Inicializar tareas y servicios
     iniciarCronRespaldos();
+    whatsappService.initialize();
+    cronService.iniciar();
   })
   .catch((error) => {
     console.error('No se pudo conectar/sincronizar con la base de datos:', error);

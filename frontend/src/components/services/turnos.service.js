@@ -39,6 +39,15 @@ const turnosService = {
   async deleteTurno(id) {
     const response = await api.delete(`/api/turnos/${id}`);
     return response.data;
+  },
+
+  /**
+   * Marca un turno como que su recordatorio de WhatsApp fue enviado manualmente
+   * @param {number|string} id - ID del turno
+   */
+  async marcarRecordatorioEnviado(id) {
+    const response = await api.put(`/api/turnos/${id}/recordatorio`);
+    return response.data;
   }
 };
 

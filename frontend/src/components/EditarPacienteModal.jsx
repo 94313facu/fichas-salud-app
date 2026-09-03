@@ -99,7 +99,7 @@ const EditarPacienteModal = ({ show, onHide, paciente, obrasSociales, setObrasSo
   const [osIdParaNuevoPlan, setOsIdParaNuevoPlan] = useState(null);
 
   useEffect(() => {
-    if (paciente) {
+    if (show && paciente) {
       setValue('numeroFicha', paciente.numeroFicha || '');
       setValue('nombre', paciente.nombre || '');
       setValue('telefono', paciente.telefono || '');
@@ -149,10 +149,16 @@ const EditarPacienteModal = ({ show, onHide, paciente, obrasSociales, setObrasSo
           activa: true
         }]);
       } else {
-        setObrasSocialesPaciente([]);
+        setObrasSocialesPaciente([{
+          idLocal: Date.now(),
+          obraSocialId: '',
+          planObraSocialId: '',
+          numeroAfiliado: '',
+          activa: true
+        }]);
       }
     }
-  }, [paciente, setValue]);
+  }, [show, paciente, setValue]);
 
   const loadPlanes = async (osId) => {
     if (!osId || planesPorObraSocial[osId]) return;
@@ -217,15 +223,22 @@ const EditarPacienteModal = ({ show, onHide, paciente, obrasSociales, setObrasSo
       setNuevoPortalId('');
       setMostrarNuevaObra(false);
       
-      // Auto-agregar esta OS nueva a la lista del paciente
-      const nuevaOsLocalId = Date.now();
-      setObrasSocialesPaciente([...obrasSocialesPaciente, { 
-        idLocal: nuevaOsLocalId, 
-        obraSocialId: creada.id, 
-        planObraSocialId: '', 
-        numeroAfiliado: '', 
-        activa: true 
-      }]);
+      // Asignar esta OS nueva a la lista del paciente
+      const emptyIndex = obrasSocialesPaciente.findIndex(os => os.obraSocialId === '');
+      if (emptyIndex !== -1) {
+        const newObras = [...obrasSocialesPaciente];
+        newObras[emptyIndex].obraSocialId = creada.id;
+        setObrasSocialesPaciente(newObras);
+      } else {
+        const nuevaOsLocalId = Date.now();
+        setObrasSocialesPaciente([...obrasSocialesPaciente, { 
+          idLocal: nuevaOsLocalId, 
+          obraSocialId: creada.id, 
+          planObraSocialId: '', 
+          numeroAfiliado: '', 
+          activa: true 
+        }]);
+      }
       loadPlanes(creada.id);
     } catch (err) {
       setErrorObra(err.mensaje || 'Error al crear la obra social.');
@@ -430,22 +443,17 @@ const EditarPacienteModal = ({ show, onHide, paciente, obrasSociales, setObrasSo
                     </div>
                   </div>
 
-                  {obrasSocialesPaciente.length === 0 ? (
-                    <div className="col-12">
-                      <div className="alert alert-secondary text-center py-2 mb-0">
-                        <i className="bi bi-info-circle me-2"></i> El paciente está registrado como <strong>Particular / Sin Obra Social</strong>. Utilice el botón superior para agregar una cobertura.
-                      </div>
-                    </div>
-                  ) : (
-                    obrasSocialesPaciente.map((osPaciente, index) => (
+                  {obrasSocialesPaciente.map((osPaciente, index) => (
                       <div key={osPaciente.idLocal} className="col-12 mb-3">
                         <div className="card border-0 shadow-sm bg-light">
                           <div className="card-body p-3">
                             <div className="d-flex justify-content-between align-items-center mb-2">
                               <span className="badge bg-secondary">Cobertura {index + 1}</span>
-                              <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => quitarObraSocial(osPaciente.idLocal)}>
-                                <i className="bi bi-trash"></i>
-                              </button>
+                              {obrasSocialesPaciente.length > 1 && (
+                                <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => quitarObraSocial(osPaciente.idLocal)}>
+                                  <i className="bi bi-trash"></i>
+                                </button>
+                              )}
                             </div>
                             <div className="row g-2">
                               <div className="col-12 col-md-4">
@@ -456,7 +464,7 @@ const EditarPacienteModal = ({ show, onHide, paciente, obrasSociales, setObrasSo
                                   onChange={(e) => updateObraSocial(osPaciente.idLocal, 'obraSocialId', e.target.value)}
                                   disabled={cargando}
                                 >
-                                  <option value="">Seleccione...</option>
+                                  <option value="">Particular / Sin Obra Social</option>
                                   {obrasSociales.map((os) => (
                                     <option key={os.id} value={os.id}>{os.nombre}{!os.activa ? ' (Pausada)' : ''}</option>
                                   ))}
@@ -502,8 +510,7 @@ const EditarPacienteModal = ({ show, onHide, paciente, obrasSociales, setObrasSo
                           </div>
                         </div>
                       </div>
-                    ))
-                  )}
+                    ))}
 
                   <div className="col-12 text-center my-2">
                     <button

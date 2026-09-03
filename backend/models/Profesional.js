@@ -76,6 +76,26 @@ const Profesional = sequelize.define('Profesional', {
     set(value) {
       this.setDataValue('horarioLaboral', value ? JSON.stringify(value) : null);
     }
+  },
+  configuracionWhatsApp: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: JSON.stringify({
+      activo: false,
+      horaEnvio: '18:00',
+      mensajePlantilla: 'Hola {nombrePaciente}, te recordamos que tenés un turno reservado para el día {fechaHora}. Por favor, avisanos si no podés asistir. ¡Saludos!'
+    }),
+    get() {
+      const raw = this.getDataValue('configuracionWhatsApp');
+      try {
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    },
+    set(value) {
+      this.setDataValue('configuracionWhatsApp', value ? JSON.stringify(value) : null);
+    }
   }
 }, {
   tableName: 'Profesionales',

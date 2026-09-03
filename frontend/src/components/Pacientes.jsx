@@ -15,9 +15,12 @@ const Pacientes = () => {
   const [filtroObraSocial, setFiltroObraSocial] = useState('TODAS');
   const [ordenamiento, setOrdenamiento] = useState('NOMBRE_ASC');
 
-  // Mensajes de éxito y error
   const [mensajeExito, setMensajeExito] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  
+  // Modal de confirmación de eliminación
+  const [pacienteAEliminar, setPacienteAEliminar] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Cargar lista de pacientes y obras sociales
   const cargarDatos = async () => {
@@ -40,7 +43,6 @@ const Pacientes = () => {
     cargarDatos();
   }, []);
 
-  // Callback al registrar exitosamente un paciente
   const handlePacienteRegistrado = async (nuevoPaciente) => {
     setMensajeExito(`Paciente "${nuevoPaciente.nombre}" registrado correctamente.`);
     
@@ -52,6 +54,30 @@ const Pacientes = () => {
     }
 
     setTimeout(() => setMensajeExito(''), 4000);
+  };
+
+  const abrirModalEliminar = (e, paciente) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setPacienteAEliminar(paciente);
+    setShowDeleteModal(true);
+  };
+
+  const confirmarEliminacion = async () => {
+    if (!pacienteAEliminar) return;
+    
+    try {
+      await pacientesService.deletePaciente(pacienteAEliminar.id);
+      setMensajeExito(`Paciente ${pacienteAEliminar.nombre} eliminado exitosamente.`);
+      setTimeout(() => setMensajeExito(''), 4000);
+      cargarDatos();
+    } catch (error) {
+      setErrorMsg('Error al eliminar el paciente. Por favor, intenta de nuevo.');
+      setTimeout(() => setErrorMsg(''), 4000);
+    } finally {
+      setShowDeleteModal(false);
+      setPacienteAEliminar(null);
+    }
   };
 
   // Filtrado Multicriterio y Ordenamiento
@@ -249,10 +275,19 @@ const Pacientes = () => {
                       <div>
                         <span className="font-weight-bold fs-5 text-dark d-block">{paciente.nombre}</span>
                         <div className="d-flex flex-wrap gap-2 align-items-center text-muted-custom mt-1" style={{ fontSize: '0.85rem' }}>
-                          <span className="badge bg-light text-primary border">
-                            <i className="bi bi-shield-check me-1"></i>
-                            {paciente.ObraSocial?.nombre || 'Particular'}
-                          </span>
+                          {paciente.ObrasSocialesAsociadas && paciente.ObrasSocialesAsociadas.length > 0 ? (
+                            paciente.ObrasSocialesAsociadas.map((osAsoc, idx) => (
+                              <span key={idx} className="badge bg-light text-primary border">
+                                <i className="bi bi-shield-check me-1"></i>
+                                {osAsoc.ObraSocial?.nombre || 'Particular'}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="badge bg-light text-primary border">
+                              <i className="bi bi-shield-check me-1"></i>
+                              {paciente.ObraSocial?.nombre || 'Particular'}
+                            </span>
+                          )}
                           {paciente.telefono && (
                             <span><i className="bi bi-telephone me-1"></i>{paciente.telefono}</span>
                           )}
@@ -262,7 +297,16 @@ const Pacientes = () => {
                         </div>
                       </div>
                     </div>
-                    <i className="bi bi-chevron-right text-muted fs-5"></i>
+                    <div className="d-flex align-items-center gap-2">
+                      <button 
+                        className="btn btn-sm btn-outline-danger border-0" 
+                        title="Eliminar paciente"
+                        onClick={(e) => abrirModalEliminar(e, paciente)}
+                      >
+                        <i className="bi bi-trash fs-5"></i>
+                      </button>
+                      <i className="bi bi-chevron-right text-muted fs-5"></i>
+                    </div>
                   </Link>
                 ))}
               </div>
@@ -288,6 +332,37 @@ const Pacientes = () => {
         setObrasSociales={setObrasSociales}
         onSave={handlePacienteRegistrado}
       />
+
+      {/* MODAL: CONFIRMAR ELIMINACIÓN */}
+      {showDeleteModal && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg">
+              <div className="modal-header border-bottom-0 bg-danger text-white">
+                <h5 className="modal-title">
+                  <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                  Confirmar Eliminación
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowDeleteModal(false)}></button>
+              </div>
+              <div className="modal-body text-center py-4">
+                <p className="fs-5 mb-1">
+                  ¿Seguro que quieres eliminar el registro del paciente <strong>{pacienteAEliminar?.nombre}</strong>?
+                </p>
+                <p className="text-muted small mb-0">Esta acción no se puede deshacer y eliminará también todo su historial, turnos y sesiones asociadas.</p>
+              </div>
+              <div className="modal-footer border-top-0 d-flex justify-content-center bg-light">
+                <button type="button" className="btn btn-secondary px-4" onClick={() => setShowDeleteModal(false)}>
+                  Cancelar
+                </button>
+                <button type="button" className="btn btn-danger px-4" onClick={confirmarEliminacion}>
+                  Sí, eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

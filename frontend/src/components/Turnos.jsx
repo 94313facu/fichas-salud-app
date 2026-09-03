@@ -8,17 +8,21 @@ import CalendarioTurnos from './CalendarioTurnos';
 const Turnos = () => {
   const [turnos, setTurnos] = useState([]);
   const [pacientes, setPacientes] = useState([]);
-  const [tratamientosPaciente, setTratamientosPaciente] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [refreshCal, setRefreshCal] = useState(0);
 
   // Vista: 'calendario' | 'lista'
   const [vistaActiva, setVistaActiva] = useState('calendario');
 
+  // Filtros de Lista
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filtroTiempo, setFiltroTiempo] = useState('futuros'); // 'futuros' | 'pasados'
+
   // Estados para nuevo turno / modal
   const [showModal, setShowModal] = useState(false);
+  const [turnoEditandoId, setTurnoEditandoId] = useState(null);
   const [pacienteId, setPacienteId] = useState('');
-  const [tratamientoId, setTratamientoId] = useState('');
   const [fechaHora, setFechaHora] = useState('');
   const [duracionMinutos, setDuracionMinutos] = useState('30');
   const [notas, setNotas] = useState('');
@@ -74,16 +78,7 @@ const Turnos = () => {
     cargarHorario();
   }, []);
 
-  // Cargar tratamientos al cambiar paciente en el modal
-  useEffect(() => {
-    if (pacienteId) {
-      pacientesService.getTratamientos(pacienteId)
-        .then(data => setTratamientosPaciente(data))
-        .catch(() => setTratamientosPaciente([]));
-    } else {
-      setTratamientosPaciente([]);
-    }
-  }, [pacienteId]);
+  // (Tratamientos eliminados)
 
   // Formatear fecha y hora para la vista
   const formatearFechaHora = (fechaStr) => {
@@ -111,28 +106,41 @@ const Turnos = () => {
       setErrorMsg('');
       setMensajeExito('');
 
-      const nuevoTurno = await turnosService.createTurno({
-        pacienteId: parseInt(pacienteId),
-        tratamientoId: tratamientoId ? parseInt(tratamientoId) : null,
-        fechaHora,
-        duracionMinutos: parseInt(duracionMinutos) || 30,
-        notas,
-        estado
-      });
+      let mensajeResponse = '';
 
-      setMensajeExito(
-        `Turno agendado con éxito${nuevoTurno.googleEventId ? ' y sincronizado en tu Google Calendar' : ''}.`
-      );
+      if (turnoEditandoId) {
+        await turnosService.updateTurno(turnoEditandoId, {
+          pacienteId: parseInt(pacienteId),
+          fechaHora,
+          duracionMinutos: parseInt(duracionMinutos) || 30,
+          notas,
+          estado
+        });
+        mensajeResponse = 'Turno actualizado con éxito.';
+      } else {
+        const nuevoTurno = await turnosService.createTurno({
+          pacienteId: parseInt(pacienteId),
+          fechaHora,
+          duracionMinutos: parseInt(duracionMinutos) || 30,
+          notas,
+          estado
+        });
+        mensajeResponse = `Turno agendado con éxito${nuevoTurno.googleEventId ? ' y sincronizado en tu Google Calendar' : ''}.`;
+      }
+
+      setMensajeExito(mensajeResponse);
 
       // Limpiar modal
+      setTurnoEditandoId(null);
       setPacienteId('');
-      setTratamientoId('');
       setFechaHora('');
       setNotas('');
       setEstado('Pendiente');
+      setDuracionMinutos('30');
       setShowModal(false);
 
       await cargarDatos();
+      setRefreshCal(prev => prev + 1); // Forzar actualización del calendario
       setTimeout(() => setMensajeExito(''), 5000);
     } catch (err) {
       setErrorMsg(err.mensaje || 'Error al guardar el turno.');
@@ -148,6 +156,7 @@ const Turnos = () => {
       await turnosService.updateTurno(turnoId, { estado: nuevoEstado });
       setMensajeExito(`Estado del turno actualizado a "${nuevoEstado}".`);
       await cargarDatos();
+      setRefreshCal(prev => prev + 1);
       setTimeout(() => setMensajeExito(''), 3000);
     } catch (err) {
       setErrorMsg(err.mensaje || 'Error al actualizar estado.');
@@ -165,6 +174,7 @@ const Turnos = () => {
       await turnosService.deleteTurno(turnoId);
       setMensajeExito('Turno cancelado correctamente.');
       await cargarDatos();
+      setRefreshCal(prev => prev + 1);
       setTimeout(() => setMensajeExito(''), 3000);
     } catch (err) {
       setErrorMsg(err.mensaje || 'Error al cancelar el turno.');
@@ -173,8 +183,75 @@ const Turnos = () => {
 
   // Slot click desde el calendario → abrir modal con fecha precargada
   const handleSlotClick = (fechaHoraISO) => {
+    setErrorMsg(''); // Limpiar errores previos
+    setTurnoEditandoId(null);
+    setPacienteId('');
+    setNotas('');
+    setEstado('Pendiente');
+    setDuracionMinutos('30');
     setFechaHora(fechaHoraISO.substring(0, 16)); // "YYYY-MM-DDTHH:mm"
     setShowModal(true);
+  };
+
+  const handleEditarTurno = (turno) => {
+    setErrorMsg('');
+    setTurnoEditandoId(turno.id);
+    setPacienteId(turno.pacienteId ? turno.pacienteId.toString() : '');
+    setDuracionMinutos(turno.duracionMinutos ? turno.duracionMinutos.toString() : '30');
+    setNotas(turno.notas || '');
+    setEstado(turno.estado || 'Pendiente');
+    
+    if (turno.fechaHora) {
+      const d = new Date(turno.fechaHora);
+      const localDate = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+      setFechaHora(localDate.toISOString().substring(0, 16));
+    } else {
+      setFechaHora('');
+    }
+    setShowModal(true);
+  };
+
+  const handleEnviarWhatsAppManual = async (turno) => {
+    try {
+      if (!turno.paciente || !turno.paciente.telefono) {
+        alert('El paciente no tiene un número de teléfono registrado.');
+        return;
+      }
+      
+      const resConfig = await fetch('http://localhost:5000/api/whatsapp/config', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      const data = await resConfig.json();
+      
+      if (!data || !data.mensajePlantilla) {
+        alert('No tienes configurada la plantilla de WhatsApp. Ve a Ajustes -> WhatsApp.');
+        return;
+      }
+
+      const fechaTurno = new Date(turno.fechaHora);
+      const fechaHoraStr = fechaTurno.toLocaleString('es-AR', {
+        weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit'
+      });
+
+      let mensaje = data.mensajePlantilla;
+      mensaje = mensaje.replace(/{nombrePaciente}/g, turno.paciente.nombre);
+      mensaje = mensaje.replace(/{fechaHora}/g, fechaHoraStr);
+
+      let phone = turno.paciente.telefono.replace(/\D/g, '');
+      if (phone.length === 10) phone = `549${phone}`;
+
+      const waLink = `https://wa.me/${phone}?text=${encodeURIComponent(mensaje)}`;
+      window.open(waLink, '_blank');
+
+      // Marcar como enviado en la DB
+      await turnosService.marcarRecordatorioEnviado(turno.id);
+      
+      setMensajeExito('Recordatorio marcado como enviado manualmente.');
+      await cargarDatos();
+      setTimeout(() => setMensajeExito(''), 3000);
+    } catch (err) {
+      setErrorMsg('Error al enviar WhatsApp.');
+    }
   };
 
   // Guardar configuración de horario
@@ -202,6 +279,41 @@ const Turnos = () => {
       }
     }));
   };
+  // Lógica de filtrado y ordenamiento de turnos para la vista Lista
+  const turnosFiltradosYOrdenados = turnos
+    .filter((t) => {
+      // Filtrar por texto (nombre paciente)
+      if (searchQuery) {
+        const nombrePaciente = t.Paciente?.nombre || 'Paciente sin nombre';
+        if (!nombrePaciente.toLowerCase().includes(searchQuery.toLowerCase())) {
+          return false;
+        }
+      }
+
+      // Filtrar por tiempo (futuro/pasado)
+      const ahora = new Date();
+      // Ajustamos a principio del día actual para incluir los de hoy como futuros/actuales
+      ahora.setHours(0, 0, 0, 0);
+      const fechaTurno = new Date(t.fechaHora);
+      
+      if (filtroTiempo === 'futuros') {
+        return fechaTurno >= ahora;
+      } else {
+        return fechaTurno < ahora;
+      }
+    })
+    .sort((a, b) => {
+      const fechaA = new Date(a.fechaHora).getTime();
+      const fechaB = new Date(b.fechaHora).getTime();
+      
+      if (filtroTiempo === 'futuros') {
+        // Futuros: del más próximo al más lejano (ascendente)
+        return fechaA - fechaB;
+      } else {
+        // Pasados: del más reciente al más viejo (descendente)
+        return fechaB - fechaA;
+      }
+    });
 
   return (
     <div className="container py-4">
@@ -218,7 +330,7 @@ const Turnos = () => {
 
         <div className="d-flex align-items-center gap-2">
           {/* Toggle Vista */}
-          <div className="cal-vista-toggle">
+          <div className="cal-vista-toggle" data-active={vistaActiva}>
             <button
               className={vistaActiva === 'calendario' ? 'activo' : ''}
               onClick={() => setVistaActiva('calendario')}
@@ -245,13 +357,6 @@ const Turnos = () => {
             <i className="bi bi-gear me-1"></i> Horarios
           </button>
 
-          <button
-            className="btn btn-accent text-white px-4 d-flex align-items-center justify-content-center"
-            onClick={() => setShowModal(true)}
-            style={{ minHeight: '44px' }}
-          >
-            <i className="bi bi-calendar-plus me-2"></i> Agendar Nuevo Turno
-          </button>
         </div>
       </div>
 
@@ -276,7 +381,10 @@ const Turnos = () => {
       {vistaActiva === 'calendario' && (
         <CalendarioTurnos
           onSlotClick={handleSlotClick}
+          onEditClick={handleEditarTurno}
+          onDeleteClick={handleEliminarTurno}
           modoSeleccion={true}
+          refreshTrigger={refreshCal}
         />
       )}
 
@@ -285,6 +393,39 @@ const Turnos = () => {
       {/* ======================== */}
       {vistaActiva === 'lista' && (
         <div className="card p-4 border-0 shadow-sm">
+          {/* Controles de filtro y búsqueda */}
+          <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4 pb-3 border-bottom">
+            <div className="btn-group shadow-sm" role="group">
+              <button
+                type="button"
+                className={`btn ${filtroTiempo === 'futuros' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setFiltroTiempo('futuros')}
+              >
+                Próximos Turnos
+              </button>
+              <button
+                type="button"
+                className={`btn ${filtroTiempo === 'pasados' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setFiltroTiempo('pasados')}
+              >
+                Turnos Pasados
+              </button>
+            </div>
+            
+            <div className="input-group w-auto" style={{ minWidth: '250px' }}>
+              <span className="input-group-text bg-white border-end-0 text-muted">
+                <i className="bi bi-search"></i>
+              </span>
+              <input
+                type="text"
+                className="form-control border-start-0 ps-0"
+                placeholder="Buscar paciente..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
           {cargando ? (
             <div className="text-center py-5">
               <div className="spinner-border spinner-primary" role="status">
@@ -292,9 +433,9 @@ const Turnos = () => {
               </div>
               <p className="mt-2 text-muted-custom">Cargando turnos agendados...</p>
             </div>
-          ) : turnos.length > 0 ? (
+          ) : turnosFiltradosYOrdenados.length > 0 ? (
             <div className="d-flex flex-column gap-3">
-              {turnos.map((t) => (
+              {turnosFiltradosYOrdenados.map((t) => (
                 <div key={t.id} className="p-3 border rounded bg-white shadow-sm d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                   
                   {/* Datos del Turno */}
@@ -334,6 +475,17 @@ const Turnos = () => {
 
                   {/* Acciones y Estado */}
                   <div className="d-flex align-items-center gap-2 flex-wrap">
+                    
+                    <button
+                      className={`btn btn-sm p-2 d-flex align-items-center ${t.recordatorioEnviado ? 'btn-success text-white' : 'btn-outline-success'}`}
+                      title={t.recordatorioEnviado ? "Recordatorio ya enviado. Clic para reenviar." : "Enviar recordatorio por WhatsApp"}
+                      onClick={() => handleEnviarWhatsAppManual(t)}
+                      style={{ height: '36px' }}
+                    >
+                      <i className={`bi bi-whatsapp ${t.recordatorioEnviado ? 'me-1' : ''}`}></i>
+                      {t.recordatorioEnviado && <i className="bi bi-check2-all"></i>}
+                    </button>
+
                     {/* Selector de Estado */}
                     <select
                       className={`form-select form-select-sm font-weight-bold ${
@@ -367,7 +519,7 @@ const Turnos = () => {
           ) : (
             <div className="text-center py-5 bg-light rounded">
               <i className="bi bi-calendar-x fs-1 text-muted"></i>
-              <p className="mt-2 text-muted-custom mb-0">No tienes turnos agendados en este momento.</p>
+              <p className="mt-2 text-muted-custom mb-0">No se encontraron turnos para la vista y búsqueda actuales.</p>
             </div>
           )}
         </div>
@@ -380,12 +532,20 @@ const Turnos = () => {
             <div className="modal-content border-0 rounded-3 shadow-lg">
               <div className="modal-header bg-primary text-white py-3">
                 <h5 className="modal-title font-weight-bold">
-                  <i className="bi bi-calendar-plus-fill me-2"></i> Agendar Nuevo Turno
+                  <i className={turnoEditandoId ? "bi bi-pencil-square me-2" : "bi bi-calendar-plus-fill me-2"}></i> 
+                  {turnoEditandoId ? 'Editar Turno' : 'Agendar Nuevo Turno'}
                 </h5>
-                <button type="button" className="btn-close btn-close-white" onClick={() => setShowModal(false)} aria-label="Cerrar"></button>
+                <button type="button" className="btn-close btn-close-white" onClick={() => { setShowModal(false); setErrorMsg(''); }} aria-label="Cerrar"></button>
               </div>
 
-              <div className="modal-body p-4 bg-light">
+              <div className="modal-body p-4 position-relative">
+                {/* Mostrar error dentro del modal si ocurre al intentar agendar */}
+                {errorMsg && (
+                  <div className="alert alert-danger d-flex align-items-center mb-3" role="alert">
+                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                    <div>{errorMsg}</div>
+                  </div>
+                )}
                 <form onSubmit={handleGuardarTurno} id="form-nuevo-turno">
                   {/* Selección de Paciente */}
                   <div className="mb-3">
@@ -404,23 +564,7 @@ const Turnos = () => {
                     </select>
                   </div>
 
-                  {/* Selección de Tratamiento (Opcional) */}
-                  {tratamientosPaciente.length > 0 && (
-                    <div className="mb-3">
-                      <label htmlFor="selectTratamiento" className="form-label font-weight-bold">Plan de Tratamiento (Opcional)</label>
-                      <select
-                        id="selectTratamiento"
-                        className="form-select"
-                        value={tratamientoId}
-                        onChange={(e) => setTratamientoId(e.target.value)}
-                      >
-                        <option value="">General / Sin plan específico</option>
-                        {tratamientosPaciente.map(t => (
-                          <option key={t.id} value={t.id}>{t.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  {/* Selección de Tratamiento eliminada */}
 
                   {/* Fecha y Hora */}
                   <div className="row g-2 mb-3">
@@ -487,17 +631,17 @@ const Turnos = () => {
               </div>
 
               <div className="modal-footer bg-light border-top">
-                <button type="button" className="btn btn-secondary px-4" onClick={() => setShowModal(false)} style={{ height: '44px' }}>
+                <button type="button" className="btn btn-secondary px-4" onClick={() => { setShowModal(false); setErrorMsg(''); }} style={{ height: '44px' }}>
                   Cancelar
                 </button>
                 <button type="submit" form="form-nuevo-turno" className="btn btn-accent text-white px-4" style={{ height: '44px' }} disabled={guardando}>
                   {guardando ? (
                     <>
                       <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                      Agendando...
+                      Guardando...
                     </>
                   ) : (
-                    'Agendar Turno'
+                    turnoEditandoId ? 'Guardar Cambios' : 'Agendar Turno'
                   )}
                 </button>
               </div>

@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    strictPort: true, // Esto obligará a Vite a usar solo el 3000 o fallar si está ocupado
     proxy: {
       '/api': {
         target: 'http://localhost:5000',

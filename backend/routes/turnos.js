@@ -90,6 +90,71 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ mensaje: 'Paciente no encontrado o sin permisos.' });
     }
 
+    const startNuevo = new Date(fechaHora);
+    const endNuevo = new Date(startNuevo.getTime() + (parseInt(duracionMinutos) || 30) * 60000);
+
+    // Verificar si el turno está dentro del horario laboral
+    const profesional = await Profesional.findByPk(req.user.id);
+    if (profesional && profesional.horarioLaboral) {
+      const horarioLaboral = typeof profesional.horarioLaboral === 'string' 
+        ? JSON.parse(profesional.horarioLaboral) 
+        : profesional.horarioLaboral;
+      const diasNombres = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+      const nombreDia = diasNombres[startNuevo.getDay()];
+      const configDia = horarioLaboral[nombreDia];
+
+      if (!configDia || !configDia.activo) {
+        return res.status(400).json({ mensaje: `No tienes configurado horario de atención para los días ${nombreDia}.` });
+      }
+
+      const getMinutos = (horaStr) => {
+        const [h, m] = horaStr.split(':').map(Number);
+        return h * 60 + m;
+      };
+
+      const inicioMinutos = getMinutos(configDia.inicio);
+      const finMinutos = getMinutos(configDia.fin);
+      
+      const startNuevoMinutos = startNuevo.getHours() * 60 + startNuevo.getMinutes();
+      // Si el turno termina al día siguiente (pasa de las 00:00), lo bloqueamos o lo sumamos
+      // Asumimos que los turnos son en el mismo día.
+      let endNuevoMinutos = endNuevo.getHours() * 60 + endNuevo.getMinutes();
+      if (endNuevo.getDate() !== startNuevo.getDate()) {
+        endNuevoMinutos += 24 * 60;
+      }
+
+      if (startNuevoMinutos < inicioMinutos || endNuevoMinutos > finMinutos) {
+        return res.status(400).json({ mensaje: `El turno excede tu horario laboral configurado para este día (${configDia.inicio} - ${configDia.fin}).` });
+      }
+    }
+
+    // Verificar superposición de turnos
+    
+    const inicioDia = new Date(startNuevo);
+    inicioDia.setHours(0,0,0,0);
+    const finDia = new Date(startNuevo);
+    finDia.setHours(23,59,59,999);
+
+    const turnosExistentes = await Turno.findAll({
+      where: {
+        profesionalId: req.user.id,
+        estado: { [Op.ne]: 'Cancelado' },
+        fechaHora: {
+          [Op.between]: [inicioDia, finDia]
+        }
+      }
+    });
+
+    const haySuperposicion = turnosExistentes.some(t => {
+      const startT = new Date(t.fechaHora);
+      const endT = new Date(startT.getTime() + (t.duracionMinutos || 30) * 60000);
+      return (startNuevo < endT && endNuevo > startT);
+    });
+
+    if (haySuperposicion) {
+      return res.status(400).json({ mensaje: 'El horario seleccionado se superpone con un turno ya existente. Por favor, selecciona otro horario.' });
+    }
+
     // Crear registro local del turno
     const nuevoTurno = await Turno.create({
       pacienteId: paciente.id,
@@ -156,6 +221,74 @@ router.put('/:id', async (req, res) => {
       }
     }
 
+    // Verificar superposición si se cambia la fecha o la duración
+    if (fechaHora || duracionMinutos !== undefined) {
+      const nuevaFechaHora = fechaHora ? new Date(fechaHora) : new Date(turno.fechaHora);
+      const nuevaDuracion = duracionMinutos !== undefined ? parseInt(duracionMinutos) || 30 : turno.duracionMinutos;
+
+      const startNuevo = nuevaFechaHora;
+      const endNuevo = new Date(startNuevo.getTime() + nuevaDuracion * 60000);
+
+      // Verificar si el turno está dentro del horario laboral
+      const profesional = await Profesional.findByPk(req.user.id);
+      if (profesional && profesional.horarioLaboral) {
+        const horarioLaboral = typeof profesional.horarioLaboral === 'string' 
+          ? JSON.parse(profesional.horarioLaboral) 
+          : profesional.horarioLaboral;
+        const diasNombres = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+        const nombreDia = diasNombres[startNuevo.getDay()];
+        const configDia = horarioLaboral[nombreDia];
+
+        if (!configDia || !configDia.activo) {
+          return res.status(400).json({ mensaje: `No tienes configurado horario de atención para los días ${nombreDia}.` });
+        }
+
+        const getMinutos = (horaStr) => {
+          const [h, m] = horaStr.split(':').map(Number);
+          return h * 60 + m;
+        };
+
+        const inicioMinutos = getMinutos(configDia.inicio);
+        const finMinutos = getMinutos(configDia.fin);
+        
+        const startNuevoMinutos = startNuevo.getHours() * 60 + startNuevo.getMinutes();
+        let endNuevoMinutos = endNuevo.getHours() * 60 + endNuevo.getMinutes();
+        if (endNuevo.getDate() !== startNuevo.getDate()) {
+          endNuevoMinutos += 24 * 60;
+        }
+
+        if (startNuevoMinutos < inicioMinutos || endNuevoMinutos > finMinutos) {
+          return res.status(400).json({ mensaje: `El turno excede tu horario laboral configurado para este día (${configDia.inicio} - ${configDia.fin}).` });
+        }
+      }
+
+      const inicioDia = new Date(startNuevo);
+      inicioDia.setHours(0,0,0,0);
+      const finDia = new Date(startNuevo);
+      finDia.setHours(23,59,59,999);
+
+      const turnosExistentes = await Turno.findAll({
+        where: {
+          profesionalId: req.user.id,
+          estado: { [Op.ne]: 'Cancelado' },
+          id: { [Op.ne]: id }, // Excluir el turno actual
+          fechaHora: {
+            [Op.between]: [inicioDia, finDia]
+          }
+        }
+      });
+
+      const haySuperposicion = turnosExistentes.some(t => {
+        const startT = new Date(t.fechaHora);
+        const endT = new Date(startT.getTime() + (t.duracionMinutos || 30) * 60000);
+        return (startNuevo < endT && endNuevo > startT);
+      });
+
+      if (haySuperposicion) {
+        return res.status(400).json({ mensaje: 'El horario seleccionado se superpone con un turno ya existente. Por favor, selecciona otro horario.' });
+      }
+    }
+
     if (fechaHora) turno.fechaHora = new Date(fechaHora);
     if (duracionMinutos !== undefined) turno.duracionMinutos = parseInt(duracionMinutos) || 30;
     if (notas !== undefined) turno.notas = notas ? notas.trim() : null;
@@ -214,6 +347,36 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar turno:', error);
     res.status(500).json({ mensaje: 'Error al eliminar el turno.' });
+  }
+});
+
+// PUT /api/turnos/:id/recordatorio
+// Marcar un turno como que el recordatorio ya fue enviado (manual)
+router.put('/:id/recordatorio', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Verificar que el turno pertenezca al profesional
+    const turno = await Turno.findOne({
+      where: { id },
+      include: [{
+        model: Paciente,
+        as: 'paciente',
+        where: { profesionalId: req.user.id }
+      }]
+    });
+
+    if (!turno) {
+      return res.status(404).json({ mensaje: 'Turno no encontrado.' });
+    }
+
+    turno.recordatorioEnviado = true;
+    await turno.save();
+
+    res.json({ mensaje: 'Turno marcado como recordatorio enviado.', turno });
+  } catch (error) {
+    console.error('Error al marcar recordatorio enviado:', error);
+    res.status(500).json({ mensaje: 'Error al actualizar el turno.' });
   }
 });
 

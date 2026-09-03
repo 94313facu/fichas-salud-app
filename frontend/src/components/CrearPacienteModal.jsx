@@ -58,11 +58,16 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
   useEffect(() => {
     if (show) {
       obrasSocialesService.getPortales().then(setPortales).catch(console.error);
+      pacientesService.getProximoNumeroFicha().then(num => {
+        if (!getValues('numeroFicha')) {
+          setValue('numeroFicha', num);
+        }
+      }).catch(console.error);
     }
-  }, [show]);
+  }, [show, setValue, getValues]);
 
   // Manejo de múltiples Obras Sociales
-  const [obrasSocialesPaciente, setObrasSocialesPaciente] = useState([]);
+  const [obrasSocialesPaciente, setObrasSocialesPaciente] = useState(() => [{ idLocal: Date.now(), obraSocialId: '', planObraSocialId: '', numeroAfiliado: '', activa: true }]);
   
   const agregarObraSocial = () => {
     setObrasSocialesPaciente([...obrasSocialesPaciente, { idLocal: Date.now(), obraSocialId: '', planObraSocialId: '', numeroAfiliado: '', activa: true }]);
@@ -163,15 +168,22 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
       setNuevoPortalId('');
       setMostrarNuevaObra(false);
       
-      // Auto-agregar esta OS nueva a la lista del paciente
-      const nuevaOsLocalId = Date.now();
-      setObrasSocialesPaciente([...obrasSocialesPaciente, { 
-        idLocal: nuevaOsLocalId, 
-        obraSocialId: creada.id, 
-        planObraSocialId: '', 
-        numeroAfiliado: '', 
-        activa: true 
-      }]);
+      // Asignar esta OS nueva a la lista del paciente
+      const emptyIndex = obrasSocialesPaciente.findIndex(os => os.obraSocialId === '');
+      if (emptyIndex !== -1) {
+        const newObras = [...obrasSocialesPaciente];
+        newObras[emptyIndex].obraSocialId = creada.id;
+        setObrasSocialesPaciente(newObras);
+      } else {
+        const nuevaOsLocalId = Date.now();
+        setObrasSocialesPaciente([...obrasSocialesPaciente, { 
+          idLocal: nuevaOsLocalId, 
+          obraSocialId: creada.id, 
+          planObraSocialId: '', 
+          numeroAfiliado: '', 
+          activa: true 
+        }]);
+      }
       loadPlanes(creada.id);
     } catch (err) {
       setErrorObra(err.mensaje || 'Error al crear la obra social.');
@@ -232,7 +244,7 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
       
       reset();
       setAfeccionesState({});
-      setObrasSocialesPaciente([]);
+      setObrasSocialesPaciente([{ idLocal: Date.now(), obraSocialId: '', planObraSocialId: '', numeroAfiliado: '', activa: true }]);
       setTabActiva('datos');
       onSave(nuevoPaciente);
       onHide();
@@ -307,10 +319,10 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
                     <label className="form-label font-weight-bold">Historia Clínica Nº</label>
                     <input
                       type="text"
-                      className="form-control"
-                      placeholder="Ej. HC-001"
+                      className="form-control bg-light"
+                      placeholder="HC-000000"
                       {...register('numeroFicha')}
-                      disabled={cargando}
+                      readOnly
                     />
                   </div>
 
@@ -460,22 +472,17 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
                     </div>
                   </div>
 
-                  {obrasSocialesPaciente.length === 0 ? (
-                    <div className="col-12">
-                      <div className="alert alert-secondary text-center py-2 mb-0">
-                        <i className="bi bi-info-circle me-2"></i> El paciente será registrado como <strong>Particular / Sin Obra Social</strong>. Utilice el botón superior para agregar una cobertura.
-                      </div>
-                    </div>
-                  ) : (
-                    obrasSocialesPaciente.map((osPaciente, index) => (
+                  {obrasSocialesPaciente.map((osPaciente, index) => (
                       <div key={osPaciente.idLocal} className="col-12 mb-3">
                         <div className="card border-0 shadow-sm bg-light">
                           <div className="card-body p-3">
                             <div className="d-flex justify-content-between align-items-center mb-2">
                               <span className="badge bg-secondary">Cobertura {index + 1}</span>
-                              <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => quitarObraSocial(osPaciente.idLocal)}>
-                                <i className="bi bi-trash"></i>
-                              </button>
+                              {obrasSocialesPaciente.length > 1 && (
+                                <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => quitarObraSocial(osPaciente.idLocal)}>
+                                  <i className="bi bi-trash"></i>
+                                </button>
+                              )}
                             </div>
                             <div className="row g-2">
                               <div className="col-12 col-md-4">
@@ -486,7 +493,7 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
                                   onChange={(e) => updateObraSocial(osPaciente.idLocal, 'obraSocialId', e.target.value)}
                                   disabled={cargando}
                                 >
-                                  <option value="">Seleccione...</option>
+                                  <option value="">Particular / Sin Obra Social</option>
                                   {obrasSociales.map((os) => (
                                     <option key={os.id} value={os.id}>{os.nombre}{!os.activa ? ' (Pausada)' : ''}</option>
                                   ))}
@@ -532,8 +539,7 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
                           </div>
                         </div>
                       </div>
-                    ))
-                  )}
+                    ))}
 
                   <div className="col-12 text-center my-2">
                     <button
@@ -830,47 +836,49 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
 
             {/* Pie de la Modal Fijado Abajo */}
             <div className="modal-footer bg-light d-flex justify-content-between flex-shrink-0 py-3">
-              {tabActiva === 'datos' ? (
-                <button
-                  type="button"
-                  className="btn btn-outline-primary font-weight-bold"
-                  onClick={() => setTabActiva('anamnesis')}
-                >
-                  Ir al Cuestionario de Salud <i className="bi bi-arrow-right ms-1"></i>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary font-weight-bold"
-                  onClick={() => setTabActiva('datos')}
-                >
-                  <i className="bi bi-arrow-left me-1"></i> Volver a Datos Personales
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onHide}
+                disabled={cargando}
+              >
+                Cancelar
+              </button>
 
               <div className="d-flex gap-2">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={onHide}
-                  disabled={cargando}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-accent text-white font-weight-bold px-4"
-                  disabled={cargando}
-                >
-                  {cargando ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                      Guardando...
-                    </>
-                  ) : (
-                    'Guardar Ficha Médica'
-                  )}
-                </button>
+                {tabActiva === 'datos' ? (
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary font-weight-bold"
+                    onClick={() => setTabActiva('anamnesis')}
+                  >
+                    Ir al Cuestionario de Salud <i className="bi bi-arrow-right ms-1"></i>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary font-weight-bold"
+                      onClick={() => setTabActiva('datos')}
+                    >
+                      <i className="bi bi-arrow-left me-1"></i> Volver a Datos Personales
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-accent text-white font-weight-bold px-4"
+                      disabled={cargando}
+                    >
+                      {cargando ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                          Guardando...
+                        </>
+                      ) : (
+                        'Guardar Ficha Médica'
+                      )}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </form>

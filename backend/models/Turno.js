@@ -50,6 +50,11 @@ const Turno = sequelize.define('Turno', {
     type: DataTypes.ENUM('obra_social', 'particular'),
     allowNull: false,
     defaultValue: 'obra_social'
+  },
+  recordatorioEnviado: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
   }
 }, {
   tableName: 'Turnos',

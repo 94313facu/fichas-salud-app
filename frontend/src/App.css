@@ -1,146 +1,288 @@
 :root {
-  --primary-color: #1F4E4A;
-  --primary-hover: #123330;
-  --accent-color: #C79A3C;
-  --accent-hover: #97711F;
-  --bg-color: #FAF9F6;
-  --text-color: #22302E;
-  --text-secondary: #5B6B68;
+  --primary-color: #0d4a43;
+  --primary-hover: #08302c;
+  --accent-color: #c79a3c;
+  --accent-hover: #9e792e;
+  --bg-color: #f3f4f6; 
+  --surface-color: #ffffff;
+  --text-main: #111827; 
+  --text-secondary: #4b5563; 
+  --border-color: #e5e7eb;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-primary: 0 4px 14px 0 rgba(13, 74, 67, 0.39);
+  --shadow-accent: 0 4px 14px 0 rgba(199, 154, 60, 0.39);
+  
+  /* Radii */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 1.05rem; /* Tipografía grande por defecto */
+  font-size: 1rem;
   background-color: var(--bg-color);
-  color: var(--text-color);
+  color: var(--text-main);
   margin: 0;
   padding: 0;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Encabezados y títulos */
 h1, h2, h3, h4, h5, h6 {
-  font-weight: 600;
-  color: var(--primary-color);
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.025em;
 }
 
-/* Personalización de Botones (mínimo ~44px de alto) */
+.text-primary {
+  color: var(--primary-color) !important;
+}
+
+/* Personalización de Botones */
 .btn {
-  height: 48px; /* Mayor a 44px para cumplir pautas de accesibilidad táctil */
+  height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 500;
-  font-size: 1.05rem;
-  border-radius: 8px;
-  padding: 0 20px;
-  transition: all 0.2s ease-in-out;
+  font-weight: 600;
+  font-size: 1rem;
+  border-radius: var(--radius-md);
+  padding: 0 24px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.025em;
+  border: none;
+}
+
+.btn-sm {
+  height: 38px;
+  padding: 0 16px;
+  font-size: 0.875rem;
+  border-radius: var(--radius-sm);
 }
 
 .btn-primary {
-  background-color: var(--primary-color) !important;
-  border-color: var(--primary-color) !important;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover)) !important;
   color: #ffffff !important;
+  box-shadow: var(--shadow-md);
 }
 
-.btn-primary:hover, .btn-primary:focus, .btn-primary:active {
-  background-color: var(--primary-hover) !important;
-  border-color: var(--primary-hover) !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+.btn-primary:hover, .btn-primary:focus {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-primary) !important;
+}
+
+.btn-primary:active {
+  transform: translateY(0);
 }
 
 .btn-accent {
-  background-color: var(--accent-color) !important;
-  border-color: var(--accent-color) !important;
+  background: linear-gradient(135deg, var(--accent-color), var(--accent-hover)) !important;
   color: #ffffff !important;
+  box-shadow: var(--shadow-md);
 }
 
-.btn-accent:hover, .btn-accent:focus, .btn-accent:active {
-  background-color: var(--accent-hover) !important;
-  border-color: var(--accent-hover) !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+.btn-accent:hover, .btn-accent:focus {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-accent) !important;
+}
+
+.btn-accent:active {
+  transform: translateY(0);
 }
 
 .btn-secondary {
-  background-color: transparent;
-  border-color: var(--text-secondary);
-  color: var(--text-color);
+  background-color: #ffffff;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary:hover {
-  background-color: rgba(91, 107, 104, 0.1);
-  color: var(--text-color);
+  background-color: #f9fafb;
+  color: var(--text-main);
+  border-color: #d1d5db;
+  box-shadow: var(--shadow-md);
+}
+
+.btn-outline-primary {
+  background-color: transparent !important;
+  border: 1.5px solid var(--primary-color) !important;
+  color: var(--primary-color) !important;
+}
+
+.btn-outline-primary:hover {
+  background-color: rgba(13, 74, 67, 0.05) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-outline-danger {
+  color: #ef4444 !important;
+  border: 1.5px solid #fecaca !important;
+  background-color: #fff !important;
+  transition: all 0.2s ease;
+}
+
+.btn-outline-danger:hover {
+  background-color: #fef2f2 !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-link {
+  color: var(--primary-color);
+  font-weight: 500;
+}
+.btn-link:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
 }
 
 /* Campos de Formulario */
 .form-control, .form-select {
   height: 48px;
-  font-size: 1.05rem;
-  border-radius: 8px;
-  border: 1px solid #ced4da;
-  padding: 10px 15px;
-  color: var(--text-color);
+  font-size: 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: #ffffff;
+  padding: 10px 16px;
+  color: var(--text-main);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-control:hover, .form-select:hover {
+  border-color: #d1d5db;
 }
 
 .form-control:focus, .form-select:focus {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 0.25rem rgba(31, 78, 74, 0.25);
+  box-shadow: 0 0 0 4px rgba(13, 74, 67, 0.1);
+  outline: none;
+}
+
+.form-label {
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 0.5rem;
 }
 
 /* Alertas de Confirmación Visibles */
+.alert {
+  border: none;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
 .alert-success {
-  background-color: #d1e7dd;
-  border-color: #badbcc;
-  color: #0f5132;
-  font-weight: 500;
-  border-radius: 8px;
+  background-color: #ecfdf5;
+  color: #065f46;
+  border-left: 4px solid #10b981;
 }
 
 .alert-danger {
-  background-color: #f8d7da;
-  border-color: #f5c2c7;
-  color: #842029;
-  font-weight: 500;
-  border-radius: 8px;
+  background-color: #fef2f2;
+  color: #991b1b;
+  border-left: 4px solid #ef4444;
 }
 
 /* Tarjetas y Contenedores */
 .card {
-  background-color: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lg);
 }
 
 .card-header {
   background-color: transparent;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-color);
+  padding: 20px 24px;
 }
 
-/* Barra de Navegación */
+/* List Groups */
+.list-group-item {
+  border-color: var(--border-color) !important;
+  transition: background-color 0.2s ease;
+}
+.list-group-item:hover {
+  background-color: #f9fafb !important;
+}
+
+/* Modales */
+.modal-content {
+  border: none;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+.modal-header {
+  border-bottom: 1px solid var(--border-color);
+  background-color: rgba(249, 250, 251, 0.8);
+  backdrop-filter: blur(8px);
+}
+.modal-footer {
+  border-top: 1px solid var(--border-color);
+  background-color: #f9fafb;
+}
+.modal-backdrop.show {
+  opacity: 0.6;
+  backdrop-filter: blur(4px);
+}
+
+/* Badges */
+.badge {
+  padding: 0.35em 0.8em;
+  font-weight: 600;
+  border-radius: 9999px; /* Pill */
+}
+.bg-light.text-primary.border {
+  background-color: #f0fdfa !important;
+  color: #0d9488 !important;
+  border-color: #ccfbf1 !important;
+}
+
+/* Barra de Navegación (Glassmorphism) */
 .navbar-custom {
-  background-color: var(--primary-color);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  min-height: 60px;
+  background: rgba(13, 74, 67, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 70px;
 }
 
 .navbar-custom .navbar-brand {
   color: #ffffff;
-  font-weight: 600;
-  font-size: 1.2rem;
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
 }
 
 .navbar-custom .nav-link {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 1.05rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1rem;
+  font-weight: 500;
+  transition: color 0.2s ease, transform 0.2s ease;
+  margin: 0 8px;
 }
 
 .navbar-custom .nav-link:hover {
   color: #ffffff;
+  transform: translateY(-1px);
 }
 
 /* Clases auxiliares */
@@ -160,621 +302,293 @@ h1, h2, h3, h4, h5, h6 {
 /* ============================
    MÓDULO: GESTIÓN OBRAS SOCIALES
    ============================ */
-
-/* Status dot indicator */
 .os-status-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
-  transition: all 0.3s ease;
 }
-
 .os-status-active {
-  background-color: #22c55e;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+  background-color: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
 }
-
 .os-status-paused {
   background-color: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15);
 }
-
-/* OS Card */
 .os-card {
-  transition: all 0.2s ease;
-  border-left: 4px solid var(--primary-color) !important;
+  border-left: 5px solid var(--primary-color) !important;
 }
-
-.os-card:hover {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08) !important;
-  transform: translateY(-1px);
-}
-
 .os-card-paused {
   border-left-color: #f59e0b !important;
-  opacity: 0.85;
+  opacity: 0.9;
 }
-
-/* Portal badge */
 .os-badge-portal {
-  font-size: 0.82rem !important;
-}
-
-.bg-accent-light {
+  font-size: 0.75rem !important;
   background-color: rgba(199, 154, 60, 0.1) !important;
+  color: var(--accent-color) !important;
+  border: 1px solid rgba(199, 154, 60, 0.3) !important;
 }
-
-.border-accent-subtle {
-  border-color: rgba(199, 154, 60, 0.25) !important;
-}
-
-/* Portal card */
 .os-portal-card {
-  transition: all 0.2s ease;
+  border-radius: var(--radius-md);
 }
-
-.os-portal-card:hover {
-  background-color: #f0f0f0 !important;
-}
-
-/* Plans section */
 .os-plans-section {
-  animation: slideDown 0.25s ease-out;
+  animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 @keyframes slideDown {
-  from {
-    opacity: 0;
-    max-height: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    max-height: 500px;
-    transform: translateY(0);
-  }
-}
-
-.os-plan-item {
-  transition: all 0.15s ease;
-}
-
-.os-plan-item:hover {
-  background-color: #e9ecef !important;
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ============================
    MÓDULO: FACTURACIÓN
    ============================ */
-
-/* Counter cards */
 .fact-counter-card {
-  border-radius: 12px;
-  transition: all 0.2s ease;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
 }
+.fact-counter-warning { border-left: 5px solid #f59e0b; }
+.fact-counter-success { border-left: 5px solid #10b981; }
+.fact-counter-primary { border-left: 5px solid var(--primary-color); }
+.fact-counter-info { border-left: 5px solid #0ea5e9; }
 
-.fact-counter-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
-}
-
-.fact-counter-warning {
-  border-left: 4px solid #f59e0b;
-}
-
-.fact-counter-success {
-  border-left: 4px solid #22c55e;
-}
-
-.fact-counter-primary {
-  border-left: 4px solid var(--primary-color);
-}
-
-.fact-counter-info {
-  border-left: 4px solid #06b6d4;
-}
-
-/* Session card */
 .fact-session-card {
-  transition: all 0.2s ease;
-  border-left: 3px solid transparent !important;
+  border: 1px solid var(--border-color);
+  border-left: 4px solid transparent !important;
+  border-radius: var(--radius-md);
 }
-
 .fact-session-card:hover {
   border-left-color: var(--accent-color) !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+  background-color: #fafafa;
 }
 
-/* Portal action button */
 .fact-btn-portal {
-  transition: all 0.2s ease;
-  font-weight: 500;
-}
-
-.fact-btn-portal:not(:disabled):hover {
-  transform: scale(1.02);
-  box-shadow: 0 3px 10px rgba(199, 154, 60, 0.3);
-}
-
-.fact-btn-portal:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Estado select */
-.fact-estado-select {
-  border-radius: 6px;
-  font-size: 0.85rem;
-  transition: all 0.2s ease;
-}
-
-.fact-estado-select:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 0.2rem rgba(31, 78, 74, 0.15);
-}
-
-/* Facturación tab in FichaPaciente */
-.fact-tab-badge {
-  font-size: 0.72rem;
-  vertical-align: super;
-  margin-left: 4px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
 }
 
 /* ============================
    MÓDULO: CALENDARIO DE TURNOS
    ============================ */
-
-/* Contenedor principal */
 .cal-container {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--surface-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
 }
-
 .cal-compacto {
-  padding: 12px;
+  padding: 16px;
 }
-
-.cal-compacto .cal-celda-dia {
-  min-height: 38px;
-  padding: 4px 2px;
-}
-
-.cal-compacto .cal-dia-numero {
-  font-size: 0.8rem;
-}
-
-.cal-compacto .cal-badge-turnos {
-  font-size: 0.6rem;
-  width: 14px;
-  height: 14px;
-  line-height: 14px;
-}
-
-/* Header de navegación */
 .cal-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  align-items: center;
+  margin-bottom: 24px;
 }
-
 .cal-titulo {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--primary-color);
-  letter-spacing: 0.3px;
+  font-size: 1.25rem;
+  color: var(--text-main);
 }
-
 .cal-nav-btn {
-  background: none;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
+  background-color: #f3f4f6;
+  border: none;
+  color: var(--text-main);
+  box-shadow: none;
   width: 36px;
   height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--primary-color);
   transition: all 0.2s ease;
-  font-size: 1rem;
 }
-
 .cal-nav-btn:hover {
-  background-color: var(--primary-color);
-  color: #ffffff;
-  border-color: var(--primary-color);
-  transform: scale(1.05);
+  background-color: var(--border-color);
+  color: var(--text-main);
+  transform: translateY(-1px);
 }
-
-/* Días de la semana header */
 .cal-dias-semana {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  margin-bottom: 4px;
-}
-
-.cal-dia-header {
   text-align: center;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  padding: 6px 0;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  margin-bottom: 8px;
 }
-
-/* Grilla de días */
+.cal-dia-header {
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
 .cal-grilla {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
+  gap: 8px;
 }
-
 .cal-celda {
-  min-height: 52px;
-  border-radius: 8px;
-  position: relative;
-}
-
-.cal-celda-vacia {
-  background: transparent;
-}
-
-.cal-celda-dia {
+  min-height: 80px;
+  border-radius: var(--radius-md);
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 4px;
+  justify-content: space-between;
+  background-color: #ffffff;
+  border: 1px solid var(--border-color);
   transition: all 0.2s ease;
-  gap: 3px;
 }
-
+.cal-celda-dia {
+  border-radius: var(--radius-md);
+}
 .cal-celda-clickable {
   cursor: pointer;
 }
-
 .cal-celda-clickable:hover {
-  transform: scale(1.05);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-  z-index: 2;
+  background-color: #f3f4f6;
+  transform: none;
+  box-shadow: none;
 }
-
-/* Estados de los días */
-.cal-dia-inactivo {
-  background-color: #f8f9fa;
-  color: #c0c7cd;
-}
-
-.cal-dia-libre {
-  background-color: #e8f5e9;
-  border: 1px solid #c8e6c9;
-}
-
-.cal-dia-parcial {
-  background-color: #fff8e1;
-  border: 1px solid #ffe082;
-}
-
 .cal-dia-completo {
-  background-color: #ffebee;
-  border: 1px solid #ef9a9a;
+  background-color: #fee2e2;
+  border-color: #fca5a5;
 }
-
+.cal-dia-completo.cal-celda-clickable:hover {
+  background-color: #fecaca;
+}
+.cal-badge-lleno {
+  font-size: 0.65rem;
+  color: #dc2626;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: block;
+  margin-top: 2px;
+}
+.cal-dia-inactivo {
+  background-color: transparent;
+  color: #d1d5db;
+}
 .cal-dia-hoy {
   outline: 2px solid var(--primary-color);
-  outline-offset: -1px;
-  font-weight: 700;
+  outline-offset: -2px;
+  font-weight: 800;
+  background-color: #f0fdfa;
 }
-
 .cal-dia-seleccionado {
-  outline: 2px solid var(--accent-color) !important;
-  outline-offset: -1px;
-  box-shadow: 0 0 0 3px rgba(199, 154, 60, 0.2);
-  transform: scale(1.08);
-  z-index: 3;
+  background-color: var(--primary-color) !important;
+  color: #ffffff !important;
+  box-shadow: var(--shadow-primary);
+  outline: none !important;
+  transform: none;
 }
-
-.cal-dia-numero {
-  font-size: 0.88rem;
-  font-weight: 500;
-  line-height: 1;
-}
-
-.cal-dia-indicadores {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.cal-badge-turnos {
-  font-size: 0.65rem;
-  background-color: var(--primary-color);
+.cal-dia-seleccionado .cal-dia-numero, .cal-dia-seleccionado .cal-badge-turnos {
   color: #ffffff;
-  border-radius: 50%;
-  width: 16px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+}
+.cal-dia-numero {
   font-weight: 600;
-  line-height: 1;
+  align-self: flex-end;
+  font-size: 0.9rem;
 }
-
-/* Dots indicadores */
+.cal-dia-seleccionado .cal-badge-turnos {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+.cal-badge-turnos {
+  background-color: var(--accent-color);
+  color: white;
+  border-radius: 12px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  align-self: flex-start;
+}
 .cal-dot {
-  width: 7px;
-  height: 7px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  display: inline-block;
 }
-
-.cal-dot-libre {
-  background-color: #4caf50;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
-}
-
-.cal-dot-parcial {
-  background-color: #ff9800;
-  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2);
-}
-
-.cal-dot-completo {
-  background-color: #f44336;
-  box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.2);
-}
-
-/* ============================
-   DETALLE DEL DÍA (SLOTS)
-   ============================ */
+.cal-dot-libre { background-color: var(--success-color); }
+.cal-dot-parcial { background-color: var(--warning-color); }
+.cal-dot-completo { background-color: var(--danger-color); }
 
 .cal-detalle-dia {
-  background-color: #f8f9fa;
-  border-radius: 10px;
-  padding: 16px;
-  border: 1px solid #e9ecef;
-  animation: calSlideDown 0.25s ease-out;
+  background-color: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 20px;
 }
-
-@keyframes calSlideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    max-height: 2000px;
-  }
-}
-
-.cal-slots-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 400px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.cal-slots-grid::-webkit-scrollbar {
-  width: 5px;
-}
-
-.cal-slots-grid::-webkit-scrollbar-thumb {
-  background-color: #c0c7cd;
-  border-radius: 4px;
-}
-
-/* Slots individuales */
 .cal-slot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  transition: all 0.15s ease;
-}
-
-.cal-slot-libre {
   background-color: #ffffff;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-sm);
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s ease;
 }
-
-.cal-slot-pasado {
-  opacity: 0.5;
-}
-
-.cal-slot-seleccionable {
-  cursor: pointer;
-}
-
-.cal-slot-seleccionable:hover {
-  border-color: var(--accent-color);
-  background-color: rgba(199, 154, 60, 0.08);
-  box-shadow: 0 2px 8px rgba(199, 154, 60, 0.15);
-  transform: translateX(4px);
-}
-
-.cal-slot-ocupado {
-  background-color: #fff;
-  border: 1px solid var(--primary-color);
-  border-left: 3px solid var(--primary-color);
-}
-
-.cal-slot-mi-paciente {
-  border-left-color: var(--accent-color) !important;
-  border-color: var(--accent-color);
-  background-color: rgba(199, 154, 60, 0.05);
-}
-
 .cal-slot-hora {
   font-weight: 600;
-  color: var(--primary-color);
-  min-width: 100px;
-  white-space: nowrap;
+  font-size: 1rem;
 }
-
-.cal-slot-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
-
-.cal-slot-paciente {
-  font-weight: 500;
-  color: var(--text-color);
-}
-
-.cal-slot-estado {
-  font-size: 0.72rem;
-  padding: 2px 6px;
-}
-
-.cal-slot-disponible {
-  font-weight: 500;
-  font-size: 0.82rem;
-}
-
-.cal-slot-notas {
-  width: 100%;
-  font-size: 0.78rem;
-  padding-left: 100px;
-}
-
-.cal-slot-duracion {
-  font-size: 0.78rem;
-}
-
-/* Leyenda */
-.cal-leyenda {
-  padding-top: 8px;
-  border-top: 1px solid #e9ecef;
-  color: var(--text-secondary);
-}
-
-/* ============================
-   CONFIGURACIÓN DE HORARIO
-   ============================ */
-
-.horario-dia-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
-  flex-wrap: wrap;
-}
-
-.horario-dia-row:last-child {
-  border-bottom: none;
-}
-
-.horario-dia-nombre {
-  font-weight: 600;
-  min-width: 90px;
-  text-transform: capitalize;
-  color: var(--text-color);
-  font-size: 0.92rem;
-}
-
-.horario-dia-toggle {
-  cursor: pointer;
-}
-
-.horario-dia-toggle .form-check-input:checked {
-  background-color: var(--primary-color);
+.cal-slot-seleccionable:hover {
   border-color: var(--primary-color);
+  box-shadow: var(--shadow-md);
+  transform: translateX(2px);
+}
+.cal-slot-ocupado {
+  border-left: 4px solid var(--primary-color);
+}
+.cal-slot-mi-paciente {
+  border-left: 4px solid var(--accent-color);
 }
 
-.horario-dia-inputs {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.horario-dia-inputs input {
-  height: 36px !important;
-  font-size: 0.88rem !important;
-  padding: 4px 8px !important;
-  width: 100px;
-}
-
-.horario-dia-inactivo {
-  opacity: 0.4;
-}
-
-/* Vista toggle botones */
 .cal-vista-toggle {
-  display: flex;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  overflow: hidden;
+  display: inline-flex;
+  background-color: #f0f0f0;
+  border-radius: 50px;
+  padding: 4px;
+  position: relative;
+  align-items: center;
+  box-shadow: inset 0 1px 4px rgba(0,0,0,0.1);
 }
 
 .cal-vista-toggle button {
-  border: none;
   background: transparent;
-  padding: 6px 14px;
-  font-size: 0.88rem;
-  font-weight: 500;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: all 0.2s ease;
+  border: none;
+  border-radius: 50px;
+  padding: 8px 24px;
+  font-weight: 600;
+  color: #666;
+  position: relative;
+  z-index: 1;
+  transition: color 0.3s ease;
+  outline: none;
 }
 
 .cal-vista-toggle button.activo {
-  background-color: var(--primary-color);
-  color: #ffffff;
+  color: #fff;
 }
 
-.cal-vista-toggle button:hover:not(.activo) {
-  background-color: rgba(31, 78, 74, 0.08);
+.cal-vista-toggle::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: calc(50% - 4px);
+  background-color: #ff0000; /* Color rojo como solicitó el usuario */
+  border-radius: 50px;
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
 }
 
-/* Responsive */
+/* El botón de Lista está a la derecha, desplazamos el fondo */
+.cal-vista-toggle[data-active="lista"]::before {
+  transform: translateX(100%);
+}
+
 @media (max-width: 576px) {
-  .cal-celda-dia {
-    min-height: 42px;
-    padding: 4px 2px;
-  }
-
-  .cal-dia-numero {
-    font-size: 0.78rem;
-  }
-
-  .cal-badge-turnos {
-    font-size: 0.58rem;
-    width: 14px;
-    height: 14px;
-  }
-
-  .cal-slot {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .cal-slot-notas {
-    padding-left: 0;
-  }
-
-  .cal-slot-hora {
-    min-width: auto;
-  }
-
-  .horario-dia-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
+  .cal-container {
+    padding: 16px;
   }
 }

@@ -12,6 +12,7 @@ import FichaPaciente from './components/FichaPaciente';
 import Turnos from './components/Turnos';
 import GestionObrasSociales from './components/GestionObrasSociales';
 import Facturacion from './components/Facturacion';
+import ConfiguracionWhatsApp from './components/ConfiguracionWhatsApp';
 import RequireAuth from './components/RequireAuth';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '1081234567890-mockclientid.apps.googleusercontent.com';
@@ -77,6 +78,14 @@ function App() {
               element={
                 <RequireAuth>
                   <Facturacion />
+                </RequireAuth>
+              } 
+            />
+            <Route 
+              path="/config-whatsapp" 
+              element={
+                <RequireAuth>
+                  <ConfiguracionWhatsApp />
                 </RequireAuth>
               } 
             />

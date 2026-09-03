@@ -10,6 +10,13 @@ const pacientesService = {
   },
 
   /**
+   * Obtiene el próximo número de historia clínica (ficha) disponible
+   */
+  async getProximoNumeroFicha() {
+    const response = await api.get('/api/pacientes/proximo-numero-ficha');
+    return response.data.proximoNumeroFicha;
+  },
+  /**
    * Registra un nuevo paciente con todos sus datos
    * @param {Object} datosPaciente - Datos personales y clínicos del paciente
    */
@@ -36,12 +43,21 @@ const pacientesService = {
     return response.data;
   },
 
+  /**
+   * Elimina un paciente
+   * @param {number|string} id - ID del paciente
+   */
+  async deletePaciente(id) {
+    const response = await api.delete(`/api/pacientes/${id}`);
+    return response.data;
+  },
+
 
 
   /**
    * Registra una nueva sesión médica vinculada a un tratamiento
    */
-  async createSesion(pacienteId, notas, archivo, presupuesto = 0, pago = 0, practicas = [], modalidadCobro = 'obra_social', obraSocialId = null, planObraSocialId = null) {
+  async createSesion(pacienteId, notas, archivo, presupuesto = 0, pago = 0, practicas = [], modalidadCobro = 'obra_social', obraSocialId = null, planObraSocialId = null, estadoFacturacion = null) {
     const formData = new FormData();
     if (notas) {
       formData.append('notas', notas);
@@ -56,6 +72,7 @@ const pacientesService = {
     formData.append('modalidadCobro', modalidadCobro);
     if (obraSocialId) formData.append('obraSocialId', obraSocialId);
     if (planObraSocialId) formData.append('planObraSocialId', planObraSocialId);
+    if (estadoFacturacion) formData.append('estadoFacturacion', estadoFacturacion);
 
     if (archivo) {
       formData.append('archivo', archivo);
