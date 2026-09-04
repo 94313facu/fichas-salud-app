@@ -89,7 +89,7 @@ const pacientesService = {
   /**
    * Modifica una sesión existente
    */
-  async updateSesion(pacienteId, sesionId, notas, archivo, presupuesto = 0, pago = 0) {
+  async updateSesion(pacienteId, sesionId, notas, archivo, presupuesto = 0, pago = 0, practicas, modalidadCobro, obraSocialId, planObraSocialId) {
     const formData = new FormData();
     if (notas !== undefined) {
       formData.append('notas', notas);
@@ -97,6 +97,13 @@ const pacientesService = {
     formData.append('presupuesto', parseFloat(presupuesto) || 0);
     formData.append('pago', parseFloat(pago) || 0);
     
+    if (practicas !== undefined) {
+      formData.append('practicas', JSON.stringify(practicas));
+    }
+    if (modalidadCobro !== undefined) formData.append('modalidadCobro', modalidadCobro);
+    if (obraSocialId !== undefined) formData.append('obraSocialId', obraSocialId);
+    if (planObraSocialId !== undefined) formData.append('planObraSocialId', planObraSocialId);
+
     if (archivo) {
       formData.append('archivo', archivo);
     }

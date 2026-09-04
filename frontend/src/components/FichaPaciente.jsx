@@ -24,6 +24,11 @@ const FichaPaciente = () => {
   const [showEditPaciente, setShowEditPaciente] = useState(false);
   const [showEditSesion, setShowEditSesion] = useState(false);
   const [showCrearTurno, setShowCrearTurno] = useState(false);
+  
+  // Estados para validación de frecuencia (Nueva Sesión)
+  const [showAdvertencia, setShowAdvertencia] = useState(false);
+  const [validacionResult, setValidacionResult] = useState(null);
+  const [pendingAction, setPendingAction] = useState(null);
   const [selectedSesion, setSelectedSesion] = useState(null);
 
   // Nuevo estado para la Obra Social de la Sesión
@@ -37,8 +42,6 @@ const FichaPaciente = () => {
   const [isNuevaPractica, setIsNuevaPractica] = useState(false);
   const [piezaDental, setPiezaDental] = useState('');
   const [caraDental, setCaraDental] = useState('');
-  const [validacionResult, setValidacionResult] = useState(null);
-  const [showAdvertencia, setShowAdvertencia] = useState(false);
   const [presupuesto, setPresupuesto] = useState('');
   const [pago, setPago] = useState('');
   const [archivo, setArchivo] = useState(null);
@@ -125,6 +128,22 @@ const FichaPaciente = () => {
       setGuardando(true);
       setErrorMsg('');
 
+      // 1. Si es una nueva práctica, guardarla en el catálogo primero
+      if (isNuevaPractica) {
+        try {
+          await practicasService.savePractica({
+            codigo: codigoPractica.trim(),
+            nombre: nombrePractica.trim(),
+            alcance: 'paciente',
+            mesesFrecuencia: 0
+          });
+          const practicasData = await practicasService.getPracticas();
+          setCatalogoPracticas(practicasData);
+        } catch (e) {
+          console.error('Error al guardar la nueva práctica en el catálogo:', e);
+        }
+      }
+
       // 2. Ejecutar validación de frecuencia
       if (codigoPractica.trim() && sesionObraSocialId) {
         const val = await practicasService.validarFrecuencia(
@@ -133,11 +152,22 @@ const FichaPaciente = () => {
           piezaDental,
           caraDental,
           null,
-          sesionObraSocialId ? parseInt(sesionObraSocialId) : null
+          sesionObraSocialId ? parseInt(sesionObraSocialId) : null,
+          null,
+          practicasSesion
         );
 
         if (!val.valido) {
           setValidacionResult(val);
+          setPendingAction({
+            type: 'agregar',
+            practica: {
+              codigoPractica: codigoPractica.trim(),
+              nombrePractica: nombrePractica.trim(),
+              piezaDental: piezaDental.trim(),
+              caraDental: caraDental.trim()
+            }
+          });
           setShowAdvertencia(true);
           setGuardando(false);
           return;
@@ -166,14 +196,29 @@ const FichaPaciente = () => {
     }
   };
 
-  const ejecutarGuardarSesion = async (modalidadCobro = 'obra_social', skipValidation = false) => {
+  const ejecutarGuardarSesion = async (modalidadCobro = 'obra_social', skipValidation = false, overridePracticas = null) => {
     try {
-      let practicasFinales = [...practicasSesion];
+      let practicasFinales = overridePracticas || [...practicasSesion];
 
       // Si no hay prácticas agregadas a la lista pero los inputs tienen algo, auto-agregamos la práctica (con validación)
-      if (practicasFinales.length === 0) {
+      if (!overridePracticas && practicasFinales.length === 0) {
         if (codigoPractica.trim() && nombrePractica.trim()) {
           setGuardando(true);
+
+          if (isNuevaPractica) {
+            try {
+              await practicasService.savePractica({
+                codigo: codigoPractica.trim(),
+                nombre: nombrePractica.trim(),
+                alcance: 'paciente',
+                mesesFrecuencia: 0
+              });
+              const practicasData = await practicasService.getPracticas();
+              setCatalogoPracticas(practicasData);
+            } catch (e) {
+              console.error('Error al guardar la nueva práctica en el catálogo:', e);
+            }
+          }
           
           if (!skipValidation && modalidadCobro !== 'particular') {
             const val = await practicasService.validarFrecuencia(
@@ -182,11 +227,22 @@ const FichaPaciente = () => {
               piezaDental,
               caraDental,
               null,
-              sesionObraSocialId ? parseInt(sesionObraSocialId) : null
+              sesionObraSocialId ? parseInt(sesionObraSocialId) : null,
+              null,
+              practicasFinales
             );
 
             if (!val.valido) {
               setValidacionResult(val);
+              setPendingAction({
+                type: 'submit',
+                practicasFinales: [{
+                  codigoPractica: codigoPractica.trim(),
+                  nombrePractica: nombrePractica.trim(),
+                  piezaDental: piezaDental.trim(),
+                  caraDental: caraDental.trim()
+                }]
+              });
               setShowAdvertencia(true);
               setGuardando(false);
               return;
@@ -220,25 +276,51 @@ const FichaPaciente = () => {
         }
       }
 
-      // Preguntar si se va a facturar si es particular
-      let estadoFacturacion = null;
-      if (modalidadCobro === 'particular') {
-        const deseaFacturar = window.confirm('¿Desea generar un registro en Facturación para esta práctica particular? \n\n(Aceptar = Sí, requiere factura; Cancelar = No requiere factura)');
-        estadoFacturacion = deseaFacturar ? 'pendiente' : 'particular';
+      // Filtrar prácticas por modalidad
+      const practicasOS = practicasFinales.filter(p => (p.modalidadCobro || modalidadCobro) !== 'particular');
+      const practicasParticular = practicasFinales.filter(p => (p.modalidadCobro || modalidadCobro) === 'particular');
+
+      let sessionPromises = [];
+
+      // Si hay prácticas de obra social, creamos esa sesión con presupuestos, pagos y archivos
+      if (practicasOS.length > 0) {
+        sessionPromises.push(pacientesService.createSesion(
+          id,
+          notas,
+          archivo,
+          presupuesto,
+          pago,
+          practicasOS,
+          'obra_social',
+          sesionObraSocialId || null,
+          planId ? parseInt(planId) : null
+        ));
       }
 
-      await pacientesService.createSesion(
-        id,
-        notas,
-        archivo,
-        presupuesto || 0,
-        pago || 0,
-        practicasFinales,
-        modalidadCobro,
-        sesionObraSocialId ? parseInt(sesionObraSocialId) : null,
-        planId ? parseInt(planId) : null,
-        estadoFacturacion
-      );
+      // Si hay prácticas particulares, creamos una sesión aparte.
+      // (Sólo adjuntamos las notas si queremos, pero no presupuesto/pago para no duplicar)
+      if (practicasParticular.length > 0) {
+        sessionPromises.push(pacientesService.createSesion(
+          id,
+          notas, // Copiamos las notas también a la sesión particular
+          null, // Sin archivo para no duplicar
+          practicasOS.length > 0 ? 0 : presupuesto, // Si no hay sesión OS, le pasamos presupuesto/pago acá
+          practicasOS.length > 0 ? 0 : pago,
+          practicasParticular,
+          'particular',
+          null,
+          null
+        ));
+      }
+
+      // Si por algún motivo no hay prácticas en ninguna (ej. se guardó sin prácticas que no debería pasar)
+      if (sessionPromises.length === 0) {
+        sessionPromises.push(pacientesService.createSesion(
+          id, notas, archivo, presupuesto, pago, [], modalidadCobro, sesionObraSocialId || null, planId ? parseInt(planId) : null
+        ));
+      }
+
+      await Promise.all(sessionPromises);
       
       // Limpiar formulario
       setPracticasSesion([]);
@@ -348,14 +430,34 @@ const FichaPaciente = () => {
 
   const handleCopiarDatos = async (sesion) => {
     const datos = buildDatosFacturacion(sesion);
+    
+    let practicas = [];
+    if (sesion.practicasMultiples) {
+      try { practicas = JSON.parse(sesion.practicasMultiples); } catch(e){}
+    } else if (sesion.codigoPractica) {
+      practicas = [{ 
+        codigoPractica: sesion.codigoPractica,
+        nombrePractica: catalogoPracticas.find(p => p.codigo.toLowerCase() === (sesion.codigoPractica || '').toLowerCase())?.nombre || '',
+        piezaDental: sesion.piezaDental,
+        caraDental: sesion.caraDental
+      }];
+    }
+    
+    const practicasTexto = practicas.map(p => {
+      const nombre = p.nombrePractica || catalogoPracticas.find(c => c.codigo.toLowerCase() === p.codigoPractica?.toLowerCase())?.nombre || '';
+      return [
+        `Código de Práctica: ${p.codigoPractica} ${nombre ? `- ${nombre}` : ''}`,
+        p.piezaDental ? `Pieza Dental: ${p.piezaDental}` : null,
+        p.caraDental ? `Cara: ${p.caraDental}` : null
+      ].filter(Boolean).join('\n');
+    }).join('\n\n');
+
     const texto = [
       `Paciente: ${datos.pacienteNombre}`,
       `Nº Afiliado: ${datos.numeroAfiliado}`,
       `Obra Social: ${datos.obraSocial}`,
       `Plan: ${datos.planObraSocial}`,
-      `Código de Práctica: ${datos.codigoPractica} ${datos.nombrePractica ? `- ${datos.nombrePractica}` : ''}`,
-      datos.piezaDental ? `Pieza Dental: ${datos.piezaDental}` : null,
-      datos.caraDental ? `Cara: ${datos.caraDental}` : null,
+      practicasTexto,
       `Fecha: ${datos.fecha}`
     ].filter(Boolean).join('\n');
 
@@ -1373,29 +1475,46 @@ const FichaPaciente = () => {
                               </div>
 
                               <div className="d-flex flex-wrap gap-2" style={{ fontSize: '0.95rem' }}>
-                                <span className="badge bg-white text-dark border">
-                                  <i className="bi bi-tag me-1 text-primary"></i>Cód: <strong>{sesion.codigoPractica}</strong>
-                                  <span className="ms-1 text-muted">({catalogoPracticas.find(p => p.codigo.toLowerCase() === sesion.codigoPractica.toLowerCase())?.nombre || 'Práctica no catalogada'})</span>
-                                  {sesion.obraSocialId ? (
-                                    <span className="badge bg-secondary ms-2" title="Obra Social">
-                                      {sesion.ObraSocialSesion?.nombre || 'Obra Social'}
-                                    </span>
-                                  ) : (
-                                    <span className="badge bg-info text-white ms-2" title="Modalidad de cobro">
-                                      Particular
-                                    </span>
-                                  )}
-                                </span>
-                                {sesion.piezaDental && (
-                                  <span className="badge bg-white text-dark border">
-                                    Pieza: <strong>{sesion.piezaDental}</strong>
-                                  </span>
-                                )}
-                                {sesion.caraDental && (
-                                  <span className="badge bg-white text-dark border">
-                                    Cara: <strong>{sesion.caraDental}</strong>
-                                  </span>
-                                )}
+                                {(() => {
+                                  let practicas = [];
+                                  if (sesion.practicasMultiples) {
+                                    try { practicas = JSON.parse(sesion.practicasMultiples); } catch(e){}
+                                  } else if (sesion.codigoPractica) {
+                                    practicas = [{ 
+                                      codigoPractica: sesion.codigoPractica,
+                                      piezaDental: sesion.piezaDental,
+                                      caraDental: sesion.caraDental
+                                    }];
+                                  }
+                                  
+                                  return practicas.map((p, idx) => (
+                                    <React.Fragment key={idx}>
+                                      <span className="badge bg-white text-dark border">
+                                        <i className="bi bi-tag me-1 text-primary"></i>Cód: <strong>{p.codigoPractica}</strong>
+                                        <span className="ms-1 text-muted">({catalogoPracticas.find(c => c.codigo.toLowerCase() === p.codigoPractica?.toLowerCase())?.nombre || 'Práctica no catalogada'})</span>
+                                        {sesion.obraSocialId ? (
+                                          <span className="badge bg-secondary ms-2" title="Obra Social">
+                                            {sesion.ObraSocialSesion?.nombre || 'Obra Social'}
+                                          </span>
+                                        ) : (
+                                          <span className="badge bg-info text-white ms-2" title="Modalidad de cobro">
+                                            Particular
+                                          </span>
+                                        )}
+                                      </span>
+                                      {p.piezaDental && (
+                                        <span className="badge bg-white text-dark border">
+                                          Pieza: <strong>{p.piezaDental}</strong>
+                                        </span>
+                                      )}
+                                      {p.caraDental && (
+                                        <span className="badge bg-white text-dark border">
+                                          Cara: <strong>{p.caraDental}</strong>
+                                        </span>
+                                      )}
+                                    </React.Fragment>
+                                  ));
+                                })()}
                               </div>
                             </div>
 
@@ -1462,6 +1581,9 @@ const FichaPaciente = () => {
         }}
         pacienteId={paciente.id}
         sesion={selectedSesion}
+        paciente={paciente}
+        obrasSociales={obrasSociales}
+        catalogoPracticas={catalogoPracticas}
         onSave={handleSesionGuardada}
       />
 
@@ -1472,11 +1594,36 @@ const FichaPaciente = () => {
         resultadoValidacion={validacionResult}
         onConfirmParticular={async () => {
           setShowAdvertencia(false);
-          await ejecutarGuardarSesion('particular', true);
+          if (pendingAction.type === 'agregar') {
+            const prac = { ...pendingAction.practica, modalidadCobro: 'particular' };
+            setPracticasSesion(prev => [...prev, prac]);
+            setCodigoPractica('');
+            setNombrePractica('');
+            setPiezaDental('');
+            setCaraDental('');
+            setIsNuevaPractica(false);
+          } else if (pendingAction.type === 'submit') {
+            const finales = pendingAction.practicasFinales.map((p, idx) => {
+              if (idx === pendingAction.practicasFinales.length - 1) {
+                return { ...p, modalidadCobro: 'particular' };
+              }
+              return p;
+            });
+            await ejecutarGuardarSesion('obra_social', true, finales);
+          }
         }}
         onConfirmObraSocial={async () => {
           setShowAdvertencia(false);
-          await ejecutarGuardarSesion('obra_social', true);
+          if (pendingAction.type === 'agregar') {
+            setPracticasSesion(prev => [...prev, pendingAction.practica]);
+            setCodigoPractica('');
+            setNombrePractica('');
+            setPiezaDental('');
+            setCaraDental('');
+            setIsNuevaPractica(false);
+          } else if (pendingAction.type === 'submit') {
+            await ejecutarGuardarSesion('obra_social', true, pendingAction.practicasFinales);
+          }
         }}
       />
 

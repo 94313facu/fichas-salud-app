@@ -34,14 +34,16 @@ const practicasService = {
   /**
    * Valida la frecuencia de una práctica
    */
-  async validarFrecuencia(pacienteId, codigoPractica, piezaDental, caraDental, fechaEv, obraSocialId) {
+  async validarFrecuencia(pacienteId, codigoPractica, piezaDental, caraDental, fechaEv, obraSocialId, ignoreSesionId = null, practicasSimuladas = []) {
     const response = await api.post('/api/practicas/validar-frecuencia', {
       pacienteId,
       codigoPractica,
       piezaDental,
       caraDental,
       fechaEv,
-      obraSocialId
+      obraSocialId,
+      ignoreSesionId,
+      practicasSimuladas
     });
     return response.data;
   },

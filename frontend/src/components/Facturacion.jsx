@@ -119,14 +119,33 @@ const Facturacion = () => {
 
   const handleCopiarDatos = async (sesion) => {
     const datos = buildDatosFacturacion(sesion);
+    
+    let practicas = [];
+    if (sesion.practicasMultiples) {
+      try { practicas = JSON.parse(sesion.practicasMultiples); } catch(e){}
+    } else if (sesion.codigoPractica) {
+      practicas = [{ 
+        codigoPractica: sesion.codigoPractica,
+        piezaDental: sesion.piezaDental,
+        caraDental: sesion.caraDental
+      }];
+    }
+    
+    const practicasTexto = practicas.map(p => {
+      const nombre = p.nombrePractica || '';
+      return [
+        `Código de Práctica: ${p.codigoPractica} ${nombre ? `- ${nombre}` : ''}`,
+        p.piezaDental ? `Pieza Dental: ${p.piezaDental}` : null,
+        p.caraDental ? `Cara: ${p.caraDental}` : null
+      ].filter(Boolean).join('\n');
+    }).join('\n\n');
+
     const texto = [
       `Paciente: ${datos.pacienteNombre}`,
       `Nº Afiliado: ${datos.numeroAfiliado}`,
       `Obra Social: ${datos.obraSocial}`,
       `Plan: ${datos.planObraSocial}`,
-      `Código de Práctica: ${datos.codigoPractica}`,
-      datos.piezaDental ? `Pieza Dental: ${datos.piezaDental}` : null,
-      datos.caraDental ? `Cara: ${datos.caraDental}` : null,
+      practicasTexto,
       `Fecha: ${datos.fecha}`
     ].filter(Boolean).join('\n');
 

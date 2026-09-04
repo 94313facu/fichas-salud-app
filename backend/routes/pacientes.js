@@ -583,7 +583,7 @@ router.post('/:id/sesiones', upload.single('archivo'), async (req, res) => {
 router.put('/:pacienteId/sesiones/:id', upload.single('archivo'), async (req, res) => {
   try {
     const { pacienteId, id } = req.params;
-    const { notas, presupuesto, pago } = req.body;
+    const { notas, presupuesto, pago, practicas, modalidadCobro, obraSocialId: sesionObraSocialId, planObraSocialId: sesionPlanObraSocialId, estadoFacturacion } = req.body;
 
     // Verificar paciente
     const paciente = await Paciente.findOne({
@@ -621,13 +621,48 @@ router.put('/:pacienteId/sesiones/:id', upload.single('archivo'), async (req, re
     const pg = parseFloat(pago) || 0.00;
     const sld = pto - pg;
 
+    // Procesar practicas si vienen múltiples
+    let practicasJSON = sesion.practicasMultiples;
+    let legacyCodigo = sesion.codigoPractica;
+    let legacyPieza = sesion.piezaDental;
+    let legacyCara = sesion.caraDental;
+
+    if (practicas) {
+      try {
+        const parsedPracticas = typeof practicas === 'string' ? JSON.parse(practicas) : practicas;
+        if (Array.isArray(parsedPracticas)) {
+          if (parsedPracticas.length > 0) {
+            practicasJSON = JSON.stringify(parsedPracticas);
+            legacyCodigo = parsedPracticas[0].codigoPractica || null;
+            legacyPieza = parsedPracticas[0].piezaDental || null;
+            legacyCara = parsedPracticas[0].caraDental || null;
+          } else {
+            practicasJSON = null;
+            legacyCodigo = null;
+            legacyPieza = null;
+            legacyCara = null;
+          }
+        }
+      } catch (e) {
+        console.warn('Error al parsear practicas:', e);
+      }
+    }
+
     await sesion.update({
       notas: notas !== undefined ? notas.trim() : sesion.notas,
       archivoUrl,
       archivoTipo,
       presupuesto: pto,
       pago: pg,
-      saldo: sld
+      saldo: sld,
+      codigoPractica: legacyCodigo,
+      piezaDental: legacyPieza,
+      caraDental: legacyCara,
+      practicasMultiples: practicasJSON,
+      modalidadCobro: modalidadCobro || sesion.modalidadCobro,
+      estadoFacturacion: estadoFacturacion || sesion.estadoFacturacion,
+      obraSocialId: sesionObraSocialId !== undefined ? (sesionObraSocialId ? parseInt(sesionObraSocialId) : null) : sesion.obraSocialId,
+      planObraSocialId: sesionPlanObraSocialId !== undefined ? (sesionPlanObraSocialId ? parseInt(sesionPlanObraSocialId) : null) : sesion.planObraSocialId
     });
 
     res.json(sesion);

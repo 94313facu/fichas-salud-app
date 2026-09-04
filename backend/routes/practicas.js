@@ -139,7 +139,7 @@ router.post('/', async (req, res) => {
 // Ahora soporta multi-OS: recibe el obraSocialId explícito con el que se va a facturar
 router.post('/validar-frecuencia', async (req, res) => {
   try {
-    const { pacienteId, codigoPractica, piezaDental, caraDental, fechaEv, obraSocialId: obraSocialIdParam, planObraSocialId: planObraSocialIdParam } = req.body;
+    const { pacienteId, codigoPractica, piezaDental, caraDental, fechaEv, obraSocialId: obraSocialIdParam, planObraSocialId: planObraSocialIdParam, ignoreSesionId, practicasSimuladas } = req.body;
 
     if (!pacienteId || !codigoPractica) {
       return res.status(400).json({ mensaje: 'pacienteId y codigoPractica son requeridos.' });
@@ -168,11 +168,16 @@ router.post('/validar-frecuencia', async (req, res) => {
     const obraSocialNombre = obraSocial?.nombre || 'Obra Social';
 
     // 2. Consultar historial de TODAS las sesiones del paciente con esta OS para validar límites globales
+    const whereConditions = {
+      pacienteId,
+      modalidadCobro: 'obra_social'
+    };
+    if (ignoreSesionId) {
+      whereConditions.id = { [require('sequelize').Op.ne]: ignoreSesionId };
+    }
+
     const sesionesPreviasTodas = await Sesion.findAll({
-      where: {
-        pacienteId,
-        modalidadCobro: 'obra_social'
-      },
+      where: whereConditions,
       order: [['createdAt', 'DESC']]
     });
 
@@ -182,6 +187,17 @@ router.post('/validar-frecuencia', async (req, res) => {
     });
 
     const fechaRef = fechaEv ? new Date(fechaEv) : new Date();
+
+    if (practicasSimuladas && practicasSimuladas.length > 0) {
+      sesionesOSActual.unshift({
+        createdAt: fechaRef,
+        obraSocialId: obraSocialId,
+        practicasMultiples: JSON.stringify(practicasSimuladas),
+        codigoPractica: null,
+        piezaDental: null,
+        caraDental: null
+      });
+    }
 
     // Validar Límite Mensual
     if (obraSocial && obraSocial.limitePracticasMensual > 0) {
