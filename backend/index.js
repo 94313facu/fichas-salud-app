@@ -27,6 +27,7 @@ const practicasRoutes = require('./routes/practicas');
 const facturacionRoutes = require('./routes/facturacion');
 const configuracionRoutes = require('./routes/configuracion');
 const whatsappRoutes = require('./routes/whatsapp');
+const notificacionesRoutes = require('./routes/notificaciones');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/pacientes', pacientesRoutes);
@@ -36,6 +37,7 @@ app.use('/api/practicas', practicasRoutes);
 app.use('/api/facturacion', facturacionRoutes);
 app.use('/api/configuracion', configuracionRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/notificaciones', notificacionesRoutes);
 
 // Ruta de diagnóstico simple
 app.get('/health', (req, res) => {

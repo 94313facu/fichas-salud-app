@@ -70,7 +70,8 @@ const CalendarioTurnos = ({
   compacto = false,
   turnosExternos = null,
   horarioExterno = null,
-  refreshTrigger = 0
+  refreshTrigger = 0,
+  renderSlotDetails = null
 }) => {
   const hoy = new Date();
   const [mesActual, setMesActual] = useState(hoy.getMonth());
@@ -78,6 +79,7 @@ const CalendarioTurnos = ({
   const [turnos, setTurnos] = useState([]);
   const [horarioLaboral, setHorarioLaboral] = useState(null);
   const [diaSeleccionado, setDiaSeleccionado] = useState(null);
+  const [slotActivo, setSlotActivo] = useState(null);
   const [cargando, setCargando] = useState(false);
 
   // Cargar datos del mes
@@ -113,6 +115,7 @@ const CalendarioTurnos = ({
       setMesActual(m => m - 1);
     }
     setDiaSeleccionado(null);
+    setSlotActivo(null);
   };
 
   const mesSiguiente = () => {
@@ -123,6 +126,7 @@ const CalendarioTurnos = ({
       setMesActual(m => m + 1);
     }
     setDiaSeleccionado(null);
+    setSlotActivo(null);
   };
 
   // Generar grilla del mes
@@ -194,7 +198,12 @@ const CalendarioTurnos = ({
       <div
         key={d}
         className={`cal-celda cal-celda-dia ${claseEstado} ${esHoy ? 'cal-dia-hoy' : ''} ${esSeleccionado ? 'cal-dia-seleccionado' : ''} ${info.estado !== 'inactivo' ? 'cal-celda-clickable' : ''}`}
-        onClick={() => info.estado !== 'inactivo' && setDiaSeleccionado(d)}
+        onClick={() => {
+          if (info.estado !== 'inactivo') {
+            setDiaSeleccionado(d);
+            setSlotActivo(null);
+          }
+        }}
       >
         <div className="d-flex flex-column align-items-end w-100">
           <span className="cal-dia-numero">{d}</span>
@@ -239,7 +248,7 @@ const CalendarioTurnos = ({
           </h5>
           <button
             className="btn btn-sm btn-outline-secondary px-2 py-1"
-            onClick={() => setDiaSeleccionado(null)}
+            onClick={() => { setDiaSeleccionado(null); setSlotActivo(null); }}
             style={{ height: '30px', fontSize: '0.8rem' }}
           >
             <i className="bi bi-x-lg"></i>
@@ -332,34 +341,43 @@ const CalendarioTurnos = ({
 
             // Slot libre
             return (
-              <div
-                key={idx}
-                className={`cal-slot cal-slot-libre ${esPasado ? 'cal-slot-pasado' : ''} ${modoSeleccion && !esPasado ? 'cal-slot-seleccionable' : ''}`}
-                onClick={() => {
-                  if (modoSeleccion && !esPasado && onSlotClick) {
-                    const fechaISO = `${anioActual}-${String(mesActual + 1).padStart(2, '0')}-${String(diaSeleccionado).padStart(2, '0')}T${slotHora}:00`;
-                    onSlotClick(fechaISO, slotHora, `${anioActual}-${String(mesActual + 1).padStart(2, '0')}-${String(diaSeleccionado).padStart(2, '0')}`);
-                  }
-                }}
-              >
-                <div className="cal-slot-hora">
-                  <i className="bi bi-clock me-1"></i>
-                  {slotHora}
+              <React.Fragment key={idx}>
+                <div
+                  className={`cal-slot cal-slot-libre ${esPasado ? 'cal-slot-pasado' : ''} ${modoSeleccion && !esPasado ? 'cal-slot-seleccionable' : ''} ${slotActivo === slotHora ? 'cal-slot-activo' : ''}`}
+                  onClick={() => {
+                    if (modoSeleccion && !esPasado && onSlotClick) {
+                      setSlotActivo(slotHora);
+                      const fechaISO = `${anioActual}-${String(mesActual + 1).padStart(2, '0')}-${String(diaSeleccionado).padStart(2, '0')}T${slotHora}:00`;
+                      onSlotClick(fechaISO, slotHora, `${anioActual}-${String(mesActual + 1).padStart(2, '0')}-${String(diaSeleccionado).padStart(2, '0')}`);
+                    }
+                  }}
+                  style={slotActivo === slotHora ? { backgroundColor: 'var(--bs-primary-bg-subtle)', borderColor: 'var(--bs-primary)', borderWidth: '2px' } : {}}
+                >
+                  <div className="cal-slot-hora">
+                    <i className="bi bi-clock me-1"></i>
+                    {slotHora}
+                  </div>
+                  <div className="cal-slot-info">
+                    {!esPasado && modoSeleccion ? (
+                      <span className={slotActivo === slotHora ? 'text-primary font-weight-bold' : 'cal-slot-disponible text-success'}>
+                        <i className={`bi ${slotActivo === slotHora ? 'bi-check-circle-fill' : 'bi-plus-circle'} me-1`}></i>
+                        {slotActivo === slotHora ? 'Seleccionado' : 'Disponible'}
+                      </span>
+                    ) : esPasado ? (
+                      <span className="text-muted"><small>Pasado</small></span>
+                    ) : (
+                      <span className="cal-slot-disponible text-success">
+                        <i className="bi bi-check-circle me-1"></i>Libre
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="cal-slot-info">
-                  {!esPasado && modoSeleccion ? (
-                    <span className="cal-slot-disponible text-success">
-                      <i className="bi bi-plus-circle me-1"></i>Disponible
-                    </span>
-                  ) : esPasado ? (
-                    <span className="text-muted"><small>Pasado</small></span>
-                  ) : (
-                    <span className="cal-slot-disponible text-success">
-                      <i className="bi bi-check-circle me-1"></i>Libre
-                    </span>
-                  )}
-                </div>
-              </div>
+                {slotActivo === slotHora && renderSlotDetails && (
+                  <div className="p-3 mb-3 border rounded-bottom" style={{ backgroundColor: '#f8f9fa', marginTop: '-8px', borderTop: 'none', borderLeft: '2px solid var(--bs-primary)', borderRight: '2px solid var(--bs-primary)', borderBottom: '2px solid var(--bs-primary)' }}>
+                    {renderSlotDetails(slotHora)}
+                  </div>
+                )}
+              </React.Fragment>
             );
           })}
         </div>

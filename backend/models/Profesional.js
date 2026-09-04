@@ -96,6 +96,25 @@ const Profesional = sequelize.define('Profesional', {
     set(value) {
       this.setDataValue('configuracionWhatsApp', value ? JSON.stringify(value) : null);
     }
+  },
+  configuracionRespaldo: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: JSON.stringify({
+      activo: true,
+      horaEnvio: '02:00'
+    }),
+    get() {
+      const raw = this.getDataValue('configuracionRespaldo');
+      try {
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    },
+    set(value) {
+      this.setDataValue('configuracionRespaldo', value ? JSON.stringify(value) : null);
+    }
   }
 }, {
   tableName: 'Profesionales',

@@ -27,6 +27,23 @@ const Turnos = () => {
   const [duracionMinutos, setDuracionMinutos] = useState('30');
   const [notas, setNotas] = useState('');
   const [estado, setEstado] = useState('Pendiente');
+  
+  // Escuchar eventos globales de notificaciones (ej: recordatorios enviados automáticamente)
+  useEffect(() => {
+    const handleAppDataUpdate = (e) => {
+      // Si recibimos una notificación de éxito (como WhatsApp o Respaldo)
+      // Recargamos los datos para que se refresque la UI
+      if (e.detail && e.detail.tipo === 'EXITO') {
+        cargarDatos();
+        setRefreshCal(prev => prev + 1);
+      }
+    };
+
+    window.addEventListener('appDataUpdate', handleAppDataUpdate);
+    return () => {
+      window.removeEventListener('appDataUpdate', handleAppDataUpdate);
+    };
+  }, []);
 
   // Configuración de horarios
   const [showConfigHorario, setShowConfigHorario] = useState(false);
@@ -181,7 +198,7 @@ const Turnos = () => {
     }
   };
 
-  // Slot click desde el calendario → abrir modal con fecha precargada
+  // Slot click desde el calendario → se abre el accordion inline
   const handleSlotClick = (fechaHoraISO) => {
     setErrorMsg(''); // Limpiar errores previos
     setTurnoEditandoId(null);
@@ -190,7 +207,6 @@ const Turnos = () => {
     setEstado('Pendiente');
     setDuracionMinutos('30');
     setFechaHora(fechaHoraISO.substring(0, 16)); // "YYYY-MM-DDTHH:mm"
-    setShowModal(true);
   };
 
   const handleEditarTurno = (turno) => {
@@ -213,7 +229,8 @@ const Turnos = () => {
 
   const handleEnviarWhatsAppManual = async (turno) => {
     try {
-      if (!turno.paciente || !turno.paciente.telefono) {
+      const pac = turno.Paciente || turno.paciente;
+      if (!pac || !pac.telefono) {
         alert('El paciente no tiene un número de teléfono registrado.');
         return;
       }
@@ -234,11 +251,19 @@ const Turnos = () => {
       });
 
       let mensaje = data.mensajePlantilla;
-      mensaje = mensaje.replace(/{nombrePaciente}/g, turno.paciente.nombre);
+      mensaje = mensaje.replace(/{nombrePaciente}/g, pac.nombre);
       mensaje = mensaje.replace(/{fechaHora}/g, fechaHoraStr);
 
-      let phone = turno.paciente.telefono.replace(/\D/g, '');
-      if (phone.length === 10) phone = `549${phone}`;
+      let phone = pac.telefono.replace(/\D/g, '');
+      // Si el número tiene 10 dígitos, asumimos que es de Argentina y le agregamos el 549 (código de país + celular)
+      if (phone.length === 10) {
+        phone = `549${phone}`;
+      } else if (phone.length === 13 && phone.startsWith('549')) {
+         // Ya tiene el formato correcto
+      } else if (phone.length === 12 && phone.startsWith('54')) {
+         // Si pusieron el código de país pero no el 9 para celulares de Argentina, se lo agregamos
+         phone = `549${phone.substring(2)}`;
+      }
 
       const waLink = `https://wa.me/${phone}?text=${encodeURIComponent(mensaje)}`;
       window.open(waLink, '_blank');
@@ -262,6 +287,7 @@ const Turnos = () => {
       await configuracionService.updateHorarioLaboral(horarioLaboral);
       setMensajeExito('Horario laboral guardado correctamente.');
       setShowConfigHorario(false);
+      setRefreshCal(prev => prev + 1);
       setTimeout(() => setMensajeExito(''), 4000);
     } catch (err) {
       setErrorMsg(err.mensaje || 'Error al guardar el horario.');
@@ -385,6 +411,77 @@ const Turnos = () => {
           onDeleteClick={handleEliminarTurno}
           modoSeleccion={true}
           refreshTrigger={refreshCal}
+          renderSlotDetails={() => (
+            <form onSubmit={handleGuardarTurno} className="row g-2 mt-1">
+              <div className="col-12 col-md-6">
+                <label htmlFor="selectPacienteInline" className="form-label font-weight-bold" style={{ fontSize: '0.85rem' }}>Paciente</label>
+                <select
+                  id="selectPacienteInline"
+                  className="form-select form-select-sm"
+                  value={pacienteId}
+                  onChange={(e) => setPacienteId(e.target.value)}
+                  required
+                  disabled={guardando}
+                >
+                  <option value="">Selecciona un paciente...</option>
+                  {pacientes.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-12 col-md-3">
+                <label htmlFor="selectDuracionInline" className="form-label font-weight-bold" style={{ fontSize: '0.85rem' }}>Duración</label>
+                <select
+                  id="selectDuracionInline"
+                  className="form-select form-select-sm"
+                  value={duracionMinutos}
+                  onChange={(e) => setDuracionMinutos(e.target.value)}
+                  disabled={guardando}
+                >
+                  <option value="15">15 min</option>
+                  <option value="30">30 min</option>
+                  <option value="45">45 min</option>
+                  <option value="60">60 min</option>
+                  <option value="90">90 min</option>
+                  <option value="120">120 min</option>
+                </select>
+              </div>
+              <div className="col-12 col-md-3">
+                <label htmlFor="selectEstadoInline" className="form-label font-weight-bold" style={{ fontSize: '0.85rem' }}>Estado inicial</label>
+                <select
+                  id="selectEstadoInline"
+                  className="form-select form-select-sm"
+                  value={estado}
+                  onChange={(e) => setEstado(e.target.value)}
+                  disabled={guardando}
+                >
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="Confirmado">Confirmado</option>
+                </select>
+              </div>
+              <div className="col-12">
+                <label htmlFor="inputNotasInline" className="form-label font-weight-bold" style={{ fontSize: '0.85rem' }}>Notas de la cita</label>
+                <textarea
+                  id="inputNotasInline"
+                  className="form-control form-control-sm"
+                  rows="2"
+                  placeholder="Ej. Control de evolución, revisión de estudios..."
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                  disabled={guardando}
+                ></textarea>
+              </div>
+              <div className="col-12 d-flex justify-content-end mt-2">
+                <button type="submit" className="btn btn-sm btn-accent text-white px-4 font-weight-bold" disabled={guardando}>
+                  {guardando ? (
+                    <><span className="spinner-border spinner-border-sm me-2" role="status"></span>Agendando...</>
+                  ) : (
+                    <><i className="bi bi-calendar-check-fill me-1"></i> Agendar Turno</>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
         />
       )}
 
@@ -525,15 +622,14 @@ const Turnos = () => {
         </div>
       )}
 
-      {/* MODAL: AGENDAR NUEVO TURNO */}
-      {showModal && (
+      {/* MODAL: EDITAR TURNO */}
+      {showModal && turnoEditandoId && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 1050 }} tabIndex="-1" role="dialog">
           <div className="modal-dialog modal-dialog-centered" role="document">
             <div className="modal-content border-0 rounded-3 shadow-lg">
               <div className="modal-header bg-primary text-white py-3">
                 <h5 className="modal-title font-weight-bold">
-                  <i className={turnoEditandoId ? "bi bi-pencil-square me-2" : "bi bi-calendar-plus-fill me-2"}></i> 
-                  {turnoEditandoId ? 'Editar Turno' : 'Agendar Nuevo Turno'}
+                  <i className="bi bi-pencil-square me-2"></i> Editar Turno
                 </h5>
                 <button type="button" className="btn-close btn-close-white" onClick={() => { setShowModal(false); setErrorMsg(''); }} aria-label="Cerrar"></button>
               </div>
@@ -641,7 +737,7 @@ const Turnos = () => {
                       Guardando...
                     </>
                   ) : (
-                    turnoEditandoId ? 'Guardar Cambios' : 'Agendar Turno'
+                    'Guardar Cambios'
                   )}
                 </button>
               </div>

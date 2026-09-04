@@ -104,11 +104,49 @@ const CrearTurnoModal = ({ show, onHide, paciente, onSave }) => {
                     pacienteId={paciente.id}
                     modoSeleccion={true}
                     compacto={true}
+                    renderSlotDetails={() => (
+                      <div className="row g-2">
+                        <div className="col-12 col-sm-6">
+                          <label className="form-label font-weight-bold" style={{ fontSize: '0.85rem' }}>Duración</label>
+                          <select className="form-select form-select-sm" {...register('duracionMinutos')} defaultValue="30" disabled={cargando}>
+                            <option value="15">15 min</option>
+                            <option value="30">30 min</option>
+                            <option value="45">45 min</option>
+                            <option value="60">60 min (1 hr)</option>
+                            <option value="90">90 min</option>
+                            <option value="120">120 min (2 hr)</option>
+                          </select>
+                        </div>
+                        <div className="col-12 col-sm-6">
+                          <label htmlFor="selectEstadoInit" className="form-label font-weight-bold" style={{ fontSize: '0.85rem' }}>Estado inicial</label>
+                          <select
+                            id="selectEstadoInit"
+                            className="form-select form-select-sm"
+                            value={estado}
+                            onChange={(e) => setEstado(e.target.value)}
+                            disabled={cargando}
+                          >
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="Confirmado">Confirmado</option>
+                          </select>
+                        </div>
+                        <div className="col-12">
+                          <label className="form-label font-weight-bold" style={{ fontSize: '0.85rem' }}>Notas o Indicaciones previas</label>
+                          <textarea
+                            className="form-control form-control-sm"
+                            rows="2"
+                            placeholder="Ej. Control de ortodoncia..."
+                            {...register('notas')}
+                            disabled={cargando}
+                          ></textarea>
+                        </div>
+                      </div>
+                    )}
                   />
                 )}
 
                 {slotSeleccionado && (
-                  <div className="alert alert-success py-2 mt-2 mb-0 d-flex align-items-center" style={{ fontSize: '0.88rem' }}>
+                  <div className="alert alert-success py-2 mt-3 mb-0 d-flex align-items-center" style={{ fontSize: '0.88rem' }}>
                     <i className="bi bi-check-circle-fill me-2"></i>
                     Seleccionado: <strong className="ms-1">{slotSeleccionado.fecha}</strong> a las <strong className="ms-1">{slotSeleccionado.hora} hs</strong>
                   </div>
@@ -116,64 +154,20 @@ const CrearTurnoModal = ({ show, onHide, paciente, onSave }) => {
               </div>
 
               <div className="row g-3">
-                <div className="col-12 col-sm-6">
-                  <label className="form-label font-weight-bold">Fecha <span className="text-danger">*</span></label>
-                  <input
-                    type="date"
-                    className={`form-control ${errors.fecha ? 'is-invalid' : ''}`}
-                    {...register('fecha', { required: 'La fecha es obligatoria.' })}
-                    disabled={cargando}
-                  />
-                  {errors.fecha && <div className="invalid-feedback">{errors.fecha.message}</div>}
-                </div>
+                {/* Inputs ocultos para mantener react-hook-form funcionando sin mostrar los campos */}
+                <input type="hidden" {...register('fecha', { required: 'Seleccione un horario.' })} />
+                <input type="hidden" {...register('hora', { required: 'Seleccione un horario.' })} />
 
-                <div className="col-12 col-sm-6">
-                  <label className="form-label font-weight-bold">Hora <span className="text-danger">*</span></label>
-                  <input
-                    type="time"
-                    className={`form-control ${errors.hora ? 'is-invalid' : ''}`}
-                    {...register('hora', { required: 'La hora es obligatoria.' })}
-                    disabled={cargando}
-                  />
-                  {errors.hora && <div className="invalid-feedback">{errors.hora.message}</div>}
-                </div>
+                {(!slotSeleccionado && (errors.fecha || errors.hora)) && (
+                  <div className="col-12">
+                    <div className="alert alert-warning py-2 mb-0" style={{ fontSize: '0.88rem' }}>
+                      <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                      Debe seleccionar un horario disponible en el calendario para poder agendar el turno.
+                    </div>
+                  </div>
+                )}
 
-                <div className="col-12 col-sm-6">
-                  <label className="form-label font-weight-bold">Duración</label>
-                  <select className="form-select" {...register('duracionMinutos')} defaultValue="30" disabled={cargando}>
-                    <option value="15">15 min</option>
-                    <option value="30">30 min</option>
-                    <option value="45">45 min</option>
-                    <option value="60">60 min (1 hr)</option>
-                    <option value="90">90 min</option>
-                    <option value="120">120 min (2 hr)</option>
-                  </select>
-                </div>
-
-                <div className="col-12 col-sm-6">
-                  <label htmlFor="selectEstadoInit" className="form-label font-weight-bold">Estado inicial</label>
-                  <select
-                    id="selectEstadoInit"
-                    className="form-select"
-                    value={estado}
-                    onChange={(e) => setEstado(e.target.value)}
-                    disabled={cargando}
-                  >
-                    <option value="Pendiente">Pendiente</option>
-                    <option value="Confirmado">Confirmado</option>
-                  </select>
-                </div>
-
-                <div className="col-12">
-                  <label className="form-label font-weight-bold">Notas o Indicaciones previas</label>
-                  <textarea
-                    className="form-control"
-                    rows="2"
-                    placeholder="Ej. Control de ortodoncia, venir en ayunas..."
-                    {...register('notas')}
-                    disabled={cargando}
-                  ></textarea>
-                </div>
+                {/* Los campos de duración, estado y notas ahora se renderizan dentro del CalendarioTurnos mediante la prop renderSlotDetails */}
               </div>
             </div>
 

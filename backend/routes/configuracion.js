@@ -68,4 +68,31 @@ router.put('/horario', async (req, res) => {
   }
 });
 
+// --- Configuración de Respaldo ---
+
+router.get('/respaldo', async (req, res) => {
+  try {
+    const profesional = await Profesional.findByPk(req.user.id);
+    if (!profesional) return res.status(404).json({ mensaje: 'Profesional no encontrado' });
+    
+    res.json(profesional.configuracionRespaldo || { activo: true, horaEnvio: '02:00' });
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error obteniendo configuración de respaldo.' });
+  }
+});
+
+router.put('/respaldo', async (req, res) => {
+  try {
+    const profesional = await Profesional.findByPk(req.user.id);
+    if (!profesional) return res.status(404).json({ mensaje: 'Profesional no encontrado' });
+    
+    profesional.configuracionRespaldo = req.body;
+    await profesional.save();
+
+    res.json({ mensaje: 'Configuración actualizada', config: profesional.configuracionRespaldo });
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error guardando configuración de respaldo.' });
+  }
+});
+
 module.exports = router;

@@ -1,3 +1,5 @@
-2026/09/02-23:36:10.633 341c Reusing MANIFEST C:\Users\Facundo Saccone\.gemini\antigravity-ide\scratch\fichas-salud-app\backend\.wwebjs_auth\session-fichas-salud-client\Default\Local Storage\leveldb/MANIFEST-000001
-2026/09/02-23:36:10.657 341c Recovering log #3
-2026/09/02-23:36:10.661 341c Reusing old log C:\Users\Facundo Saccone\.gemini\antigravity-ide\scratch\fichas-salud-app\backend\.wwebjs_auth\session-fichas-salud-client\Default\Local Storage\leveldb/000003.log 
+2026/09/04-15:25:36.590 1718 Reusing MANIFEST C:\Users\Facundo Saccone\.gemini\antigravity-ide\scratch\fichas-salud-app\backend\.wwebjs_auth\session-fichas-salud-client\Default\Local Storage\leveldb/MANIFEST-000001
+2026/09/04-15:25:36.641 1718 Recovering log #7
+2026/09/04-15:25:36.642 1718 Level-0 table #10: started
+2026/09/04-15:25:36.692 1718 Level-0 table #10: 14675 bytes OK
+2026/09/04-15:25:36.709 1718 Delete type=0 #7

@@ -150,9 +150,16 @@ const ConfiguracionWhatsApp = () => {
               <h5 className="card-title font-weight-bold">Ajustes Automáticos</h5>
             </div>
             <div className="card-body">
-              <div className="alert alert-info small">
-                <i className="bi bi-info-circle me-1"></i>
+              <div className="bg-info-subtle p-3 rounded mb-4 text-dark" style={{ fontSize: '0.9rem' }}>
+                <i className="bi bi-info-circle me-2"></i>
                 Para que los recordatorios automáticos se envíen, el sistema (servidor) debe estar encendido a la hora configurada. Si lo prefieres, también puedes enviarlos manualmente desde la agenda.
+              </div>
+
+              <div className="alert alert-warning d-flex align-items-start mb-4 py-2" role="alert" style={{ fontSize: '0.88rem' }}>
+                <i className="bi bi-exclamation-triangle-fill me-2 fs-5 mt-1"></i>
+                <div>
+                  <strong>¡Importante!</strong> Para que los mensajes automáticos se envíen, <strong>la computadora debe estar encendida</strong> exactamente a la hora configurada. De lo contrario, el proceso no se ejecutará.
+                </div>
               </div>
 
               <form onSubmit={handleGuardarConfig}>

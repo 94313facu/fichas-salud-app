@@ -21,6 +21,52 @@ const Inicio = () => {
   // Estados para Google Drive Sync
   const [syncingDrive, setSyncingDrive] = useState(false);
   const [necesitaVincular, setNecesitaVincular] = useState(false);
+  
+  // Configuracion Respaldo Automático
+  const [configRespaldo, setConfigRespaldo] = useState({ activo: true, horaEnvio: '02:00' });
+  const [guardandoConfig, setGuardandoConfig] = useState(false);
+
+  // Cargar config al montar
+  React.useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('http://localhost:5000/api/configuracion/respaldo', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data) setConfigRespaldo(data);
+        }
+      } catch (e) {
+        console.error('Error cargando config de respaldo', e);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  const handleGuardarConfigRespaldo = async () => {
+    try {
+      setGuardandoConfig(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/configuracion/respaldo', {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(configRespaldo)
+      });
+      if (res.ok) {
+        setExitoExportar('Configuración de respaldo automático guardada.');
+        setTimeout(() => setExitoExportar(null), 4000);
+      }
+    } catch (e) {
+      setErrorExportar('Error al guardar configuración de respaldo.');
+    } finally {
+      setGuardandoConfig(false);
+    }
+  };
 
   // Hook para solicitar permisos de Google Drive / Calendar (auth-code)
   const vincularGoogleAuthCode = useGoogleLogin({
@@ -223,12 +269,52 @@ const Inicio = () => {
               </p>
             </div>
 
-            {/* Aviso de Respaldo Diario Automático */}
-            <div className="bg-light p-2 rounded border mb-3 text-muted-custom d-flex align-items-center" style={{ fontSize: '0.88rem' }}>
-              <i className="bi bi-shield-check text-success me-2 fs-5"></i>
-              <span>
-                <strong>Respaldo Diario Automático</strong>: Se ejecuta automáticamente todas las noches (02:00 AM) guardando tu copia actualizada en tu Google Drive.
-              </span>
+            {/* Configuración de Respaldo Diario Automático */}
+            <div className="bg-light p-3 rounded border mb-4">
+              <h4 className="fs-6 mb-3 font-weight-bold text-dark d-flex align-items-center">
+                <i className="bi bi-clock-history text-primary me-2"></i>
+                Ajustes de Respaldo Automático
+              </h4>
+              
+              <div className="form-check form-switch mb-3">
+                <input 
+                  className="form-check-input" 
+                  type="checkbox" 
+                  id="switchRespaldo"
+                  checked={configRespaldo.activo}
+                  onChange={(e) => setConfigRespaldo({...configRespaldo, activo: e.target.checked})}
+                />
+                <label className="form-check-label fw-bold" htmlFor="switchRespaldo">
+                  Activar respaldo automático
+                </label>
+              </div>
+
+              {configRespaldo.activo && (
+                <div className="mb-3 w-50">
+                  <label className="form-label text-muted-custom small mb-1">Hora de ejecución</label>
+                  <input 
+                    type="time" 
+                    className="form-control" 
+                    value={configRespaldo.horaEnvio}
+                    onChange={(e) => setConfigRespaldo({...configRespaldo, horaEnvio: e.target.value})}
+                  />
+                </div>
+              )}
+
+              <button 
+                className="btn btn-sm btn-primary mb-3" 
+                onClick={handleGuardarConfigRespaldo}
+                disabled={guardandoConfig}
+              >
+                {guardandoConfig ? 'Guardando...' : 'Guardar Horario'}
+              </button>
+
+              <div className="alert alert-warning d-flex align-items-start mb-0 py-2" role="alert" style={{ fontSize: '0.88rem' }}>
+                <i className="bi bi-exclamation-triangle-fill me-2 fs-5 mt-1"></i>
+                <div>
+                  <strong>¡Importante!</strong> Para que el respaldo automático se ejecute, <strong>la computadora debe estar encendida</strong> exactamente a la hora configurada. De lo contrario, el sistema no podrá subir la copia a tu cuenta de Google Drive.
+                </div>
+              </div>
             </div>
 
             <div className="d-flex flex-column flex-md-row gap-2 pt-1">

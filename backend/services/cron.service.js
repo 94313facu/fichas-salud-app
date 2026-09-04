@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const { Op } = require('sequelize');
 const { Turno, Profesional, Paciente } = require('../models');
 const whatsappService = require('./whatsapp.service');
+const notificacionesService = require('./notificaciones.service');
 
 class CronService {
   constructor() {
@@ -73,10 +74,6 @@ class CronService {
         },
         include: [{
           model: Paciente,
-          as: 'paciente',
-          // Asegurar que el paciente pertenece al profesional si tuvieramos esa relación, 
-          // pero el Turno ya debería estar ligado a algo, o el Paciente está ligado al profesional.
-          // En esta app, los pacientes tienen profesionalId.
           where: {
             profesionalId: profesional.id
           }
@@ -86,7 +83,7 @@ class CronService {
       console.log(`[Cron] Se encontraron ${turnos.length} turnos para recordar.`);
 
       for (const turno of turnos) {
-        const paciente = turno.paciente;
+        const paciente = turno.Paciente || turno.paciente;
         
         if (!paciente.telefono) {
           console.log(`[Cron] Turno ${turno.id}: Paciente ${paciente.nombre} no tiene teléfono.`);
@@ -110,6 +107,13 @@ class CronService {
           turno.recordatorioEnviado = true;
           await turno.save();
           console.log(`[Cron] Recordatorio enviado a ${paciente.nombre} (${paciente.telefono})`);
+          
+          // Emitir notificación SSE
+          notificacionesService.enviarNotificacion(profesional.id, {
+            tipo: 'EXITO',
+            titulo: 'WhatsApp Automático',
+            mensaje: `Recordatorio enviado a ${paciente.nombre}.`
+          });
           
           // Pequeño delay para no saturar WhatsApp y evitar ban
           await new Promise(resolve => setTimeout(resolve, 3000));

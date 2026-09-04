@@ -361,7 +361,6 @@ router.put('/:id/recordatorio', async (req, res) => {
       where: { id },
       include: [{
         model: Paciente,
-        as: 'paciente',
         where: { profesionalId: req.user.id }
       }]
     });

@@ -19,6 +19,10 @@ const Paciente = sequelize.define('Paciente', {
       notEmpty: true
     }
   },
+  dni: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   telefono: {
     type: DataTypes.STRING,
     allowNull: true

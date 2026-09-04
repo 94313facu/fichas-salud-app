@@ -32,6 +32,27 @@ const db = new sqlite3.Database(dbPath, (err) => {
         console.log('Added configuracionWhatsApp to Profesionales.');
       }
     });
+    // Agregar columna configuracionRespaldo a Profesionales si no existe
+    db.run(`ALTER TABLE Profesionales ADD COLUMN configuracionRespaldo TEXT;`, (err) => {
+      if (err && err.message.includes('duplicate column name')) {
+        console.log('Column configuracionRespaldo already exists in Profesionales.');
+      } else if (err) {
+        console.error('Error adding configuracionRespaldo:', err);
+      } else {
+        console.log('Added configuracionRespaldo to Profesionales.');
+      }
+    });
+
+    // Agregar columna dni a Pacientes si no existe
+    db.run(`ALTER TABLE Pacientes ADD COLUMN dni TEXT;`, (err) => {
+      if (err && err.message.includes('duplicate column name')) {
+        console.log('Column dni already exists in Pacientes.');
+      } else if (err) {
+        console.error('Error adding dni:', err);
+      } else {
+        console.log('Added dni to Pacientes.');
+      }
+    });
   });
 
   // Cierra después de unos segundos

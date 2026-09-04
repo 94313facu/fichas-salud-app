@@ -14,6 +14,7 @@ import GestionObrasSociales from './components/GestionObrasSociales';
 import Facturacion from './components/Facturacion';
 import ConfiguracionWhatsApp from './components/ConfiguracionWhatsApp';
 import RequireAuth from './components/RequireAuth';
+import NotificadorGlobal from './components/NotificadorGlobal';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '1081234567890-mockclientid.apps.googleusercontent.com';
 
@@ -21,6 +22,9 @@ function App() {
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <BrowserRouter>
+        {/* Notificaciones globales SSE */}
+        <NotificadorGlobal />
+        
         {/* Barra de navegación global */}
         <Menu />
         

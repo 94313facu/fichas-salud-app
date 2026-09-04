@@ -376,6 +376,11 @@ const EditarPacienteModal = ({ show, onHide, paciente, obrasSociales, setObrasSo
                     {errors.nombre && <div className="invalid-feedback">{errors.nombre.message}</div>}
                   </div>
 
+                  <div className="col-12 col-sm-4">
+                    <label className="form-label font-weight-bold">DNI</label>
+                    <input type="text" className="form-control" {...register('dni')} disabled={cargando} />
+                  </div>
+
                   <div className="col-12 col-sm-6">
                     <label className="form-label font-weight-bold">Teléfono de contacto</label>
                     <input type="text" className="form-control" {...register('telefono')} disabled={cargando} />
@@ -443,17 +448,24 @@ const EditarPacienteModal = ({ show, onHide, paciente, obrasSociales, setObrasSo
                     </div>
                   </div>
 
+                  {obrasSocialesPaciente.length === 0 && (
+                    <div className="col-12 mb-3">
+                      <div className="alert alert-secondary text-center mb-0 py-2 border-0 bg-light shadow-sm" style={{ fontSize: '0.9rem' }}>
+                        <i className="bi bi-person-badge text-muted me-2"></i>
+                        El paciente se encuentra registrado como <strong>Particular</strong> (Sin Obra Social).
+                      </div>
+                    </div>
+                  )}
+
                   {obrasSocialesPaciente.map((osPaciente, index) => (
                       <div key={osPaciente.idLocal} className="col-12 mb-3">
                         <div className="card border-0 shadow-sm bg-light">
                           <div className="card-body p-3">
                             <div className="d-flex justify-content-between align-items-center mb-2">
                               <span className="badge bg-secondary">Cobertura {index + 1}</span>
-                              {obrasSocialesPaciente.length > 1 && (
-                                <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => quitarObraSocial(osPaciente.idLocal)}>
-                                  <i className="bi bi-trash"></i>
-                                </button>
-                              )}
+                              <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => quitarObraSocial(osPaciente.idLocal)}>
+                                <i className="bi bi-trash"></i>
+                              </button>
                             </div>
                             <div className="row g-2">
                               <div className="col-12 col-md-4">

@@ -340,6 +340,17 @@ const CrearPacienteModal = ({ show, onHide, obrasSociales, setObrasSociales, onS
                     {errors.nombre && <div className="invalid-feedback">{errors.nombre.message}</div>}
                   </div>
 
+                  <div className="col-12 col-sm-4">
+                    <label className="form-label font-weight-bold">DNI</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Ej. 12345678"
+                      {...register('dni')}
+                      disabled={cargando}
+                    />
+                  </div>
+
                   <div className="col-12 col-sm-6">
                     <label className="form-label font-weight-bold">Teléfono de contacto</label>
                     <input

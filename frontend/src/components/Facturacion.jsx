@@ -17,6 +17,27 @@ const Facturacion = () => {
   const [mensajeExito, setMensajeExito] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [copiadoId, setCopiadoId] = useState(null);
+  const [expandidoId, setExpandidoId] = useState(null);
+  const toggleExpandir = (id) => setExpandidoId(prev => prev === id ? null : id);
+
+  const handleCopiarDato = async (texto, idBoton) => {
+    if (!texto) return;
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiadoId(idBoton);
+      setTimeout(() => setCopiadoId(null), 2000);
+    } catch {
+      // Fallback
+      const textArea = document.createElement('textarea');
+      textArea.value = texto;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiadoId(idBoton);
+      setTimeout(() => setCopiadoId(null), 2000);
+    }
+  };
 
   // Filtros
   const [filtroEstado, setFiltroEstado] = useState('pendiente');
@@ -74,6 +95,8 @@ const Facturacion = () => {
 
     return {
       pacienteNombre: pac.nombre || '',
+      pacienteDni: pac.dni || '',
+      pacienteFechaNacimiento: pac.fechaNacimiento ? new Date(pac.fechaNacimiento).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : '',
       numeroAfiliado: pac.numeroAfiliado || '',
       planObraSocial: plan.nombre || pac.planObraSocial || '',
       planCodigo: plan.codigo || '',
@@ -142,6 +165,8 @@ const Facturacion = () => {
 
     const texto = [
       `Paciente: ${datos.pacienteNombre}`,
+      datos.pacienteDni ? `DNI: ${datos.pacienteDni}` : null,
+      datos.pacienteFechaNacimiento ? `Fecha de Nac.: ${datos.pacienteFechaNacimiento}` : null,
       `Nº Afiliado: ${datos.numeroAfiliado}`,
       `Obra Social: ${datos.obraSocial}`,
       `Plan: ${datos.planObraSocial}`,
@@ -285,91 +310,65 @@ const Facturacion = () => {
             }
 
             const estadoInfo = ESTADOS[sesion.estadoFacturacion] || ESTADOS.pendiente;
+            const esExpandido = expandidoId === sesion.id;
+            
+            let practicas = [];
+            if (sesion.practicasMultiples) {
+              try { practicas = JSON.parse(sesion.practicasMultiples); } catch(e){}
+            } else if (sesion.codigoPractica) {
+              practicas = [{ 
+                codigoPractica: sesion.codigoPractica,
+                piezaDental: sesion.piezaDental,
+                caraDental: sesion.caraDental
+              }];
+            }
+            const practicasCodigosText = practicas.map(p => p.codigoPractica).join(', ');
+            const fnac = pac.fechaNacimiento ? new Date(pac.fechaNacimiento).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : '';
 
             return (
-              <div key={sesion.id} className="card border-0 shadow-sm fact-session-card">
-                <div className="card-body p-3">
-                  <div className="d-flex flex-column flex-lg-row justify-content-between gap-3">
-                    {/* Info principal */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                        <span className={`badge ${estadoInfo.bg} ${estadoInfo.text} py-1 px-2`}>
+              <div key={sesion.id} className="card border-0 shadow-sm fact-session-card mb-3 position-relative">
+                <div className="card-body p-4 pb-2">
+                  <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    
+                    {/* Left: Info compacta */}
+                    <div className="d-flex flex-column gap-2" style={{ flex: 1 }}>
+                      <div className="d-flex flex-wrap align-items-center gap-2">
+                        <span className={`badge ${estadoInfo.bg} ${estadoInfo.text} py-2 px-3 rounded-pill`} style={{fontSize: '0.85rem'}}>
                           <i className={`bi ${estadoInfo.icon} me-1`}></i>{estadoInfo.label}
                         </span>
-                        <span className="badge bg-light text-dark border">{formatearFecha(sesion.createdAt)}</span>
+                        <span className="badge bg-white text-secondary border rounded-pill px-3 py-2" style={{fontSize: '0.85rem'}}>
+                          {formatearFecha(sesion.createdAt)}
+                        </span>
                         {os.nombre && (
-                          <span className="badge bg-accent-light text-accent border border-accent-subtle">
+                          <span className="badge bg-white text-accent border border-warning-subtle rounded-pill px-3 py-2" style={{fontSize: '0.85rem'}}>
                             <i className="bi bi-building me-1"></i>{os.nombre}
                           </span>
                         )}
                       </div>
 
-                      <div className="d-flex flex-wrap align-items-center gap-2 mb-1">
-                        <span className="fw-bold text-dark">
-                          <i className="bi bi-person me-1 text-primary"></i>{pac.nombre || 'Paciente'}
-                        </span>
-                        {afil && (
-                          <span className="text-muted-custom small">Nº Afil: <strong>{afil}</strong></span>
-                        )}
-                        {(plan.nombre || pac.planObraSocial) && (
-                          <span className="text-muted-custom small">Plan: <strong>{plan.nombre || pac.planObraSocial}</strong></span>
-                        )}
+                      <div className="fw-bold text-dark mt-2" style={{fontSize: '1.25rem'}}>
+                        <i className="bi bi-person me-2 text-secondary"></i>{pac.nombre || 'Paciente'}
                       </div>
 
-                      <div className="d-flex flex-wrap gap-2" style={{ fontSize: '0.9rem' }}>
-                        {(() => {
-                          let practicas = [];
-                          if (sesion.practicasMultiples) {
-                            try { practicas = JSON.parse(sesion.practicasMultiples); } catch(e){}
-                          } else if (sesion.codigoPractica) {
-                            practicas = [{ 
-                              codigoPractica: sesion.codigoPractica,
-                              piezaDental: sesion.piezaDental,
-                              caraDental: sesion.caraDental
-                            }];
-                          }
-                          
-                          if (practicas.length === 0) {
-                            return <span className="text-muted small">Sin prácticas registradas</span>;
-                          }
-
-                          return practicas.map((p, idx) => (
-                            <div key={idx} className="d-flex align-items-center gap-1 border rounded px-2 py-1 bg-light text-dark">
-                              <i className="bi bi-tag text-primary"></i>
+                      <div className="d-flex flex-wrap gap-2 mt-1">
+                        {practicas.length === 0 ? (
+                          <span className="text-muted small">Sin prácticas registradas</span>
+                        ) : (
+                          practicas.map((p, idx) => (
+                            <div key={idx} className="border rounded px-2 py-1 bg-white text-secondary d-flex align-items-center shadow-sm" style={{fontSize: '0.9rem'}}>
+                              <i className="bi bi-tag text-secondary me-2"></i>
                               <span>Cód: <strong>{p.codigoPractica}</strong></span>
-                              {p.piezaDental && <span className="ms-1 border-start ps-1 border-secondary">P: <strong>{p.piezaDental}</strong></span>}
-                              {p.caraDental && <span className="ms-1 border-start ps-1 border-secondary">C: <strong>{p.caraDental}</strong></span>}
                             </div>
-                          ));
-                        })()}
+                          ))
+                        )}
                       </div>
                     </div>
 
-                    {/* Acciones */}
-                    <div className="d-flex flex-column gap-2 flex-shrink-0 fact-actions" style={{ minWidth: '220px' }}>
-                      {/* Botón Facturar en Portal */}
-                      <button
-                        className="btn btn-accent btn-sm d-flex align-items-center justify-content-center gap-1 w-100 fact-btn-portal"
-                        onClick={() => handleFacturarEnPortal(sesion)}
-                        disabled={!portal.url}
-                        title={portal.url ? `Abrir ${portal.nombre}` : 'Sin portal configurado'}
-                      >
-                        <i className="bi bi-box-arrow-up-right"></i>
-                        {portal.nombre ? `Facturar en ${portal.nombre}` : 'Sin portal'}
-                      </button>
-
-                      {/* Botón Copiar datos */}
-                      <button
-                        className={`btn btn-sm d-flex align-items-center justify-content-center gap-1 w-100 ${copiadoId === sesion.id ? 'btn-success' : 'btn-outline-secondary'}`}
-                        onClick={() => handleCopiarDatos(sesion)}
-                      >
-                        <i className={`bi ${copiadoId === sesion.id ? 'bi-check-lg' : 'bi-clipboard'}`}></i>
-                        {copiadoId === sesion.id ? '¡Copiado!' : 'Copiar datos'}
-                      </button>
-
-                      {/* Selector de estado */}
+                    {/* Right: Select de estado */}
+                    <div className="d-flex justify-content-end align-items-start h-100 mt-3 mt-md-0">
                       <select
-                        className="form-select form-select-sm fact-estado-select"
+                        className="form-select form-select-md border fact-estado-select bg-white shadow-sm"
+                        style={{ width: '220px', borderRadius: '8px' }}
                         value={sesion.estadoFacturacion}
                         onChange={e => handleCambiarEstado(sesion.id, e.target.value)}
                       >
@@ -379,7 +378,137 @@ const Facturacion = () => {
                       </select>
                     </div>
                   </div>
+
+                  {/* Chevron Toggle */}
+                  <div className="text-center mt-3 cursor-pointer" onClick={() => toggleExpandir(sesion.id)} style={{ cursor: 'pointer' }}>
+                    <i className={`bi bi-chevron-${esExpandido ? 'up' : 'down'} text-muted fs-3`}></i>
+                  </div>
                 </div>
+
+                {/* Expanded Content */}
+                {esExpandido && (
+                  <div className="card-footer bg-light border-top p-4" style={{borderBottomLeftRadius: 'var(--radius-md)', borderBottomRightRadius: 'var(--radius-md)'}}>
+                     <div className="row g-4">
+                       <div className="col-12 col-lg-8">
+                         <h6 className="fw-bold mb-3 text-secondary" style={{fontSize: '0.9rem'}}><i className="bi bi-card-list me-2"></i>DATOS PARA FACTURACIÓN</h6>
+                         
+                         <div className="row g-3">
+                            {/* Nombre */}
+                            <div className="col-12 col-md-4">
+                              <div className="d-flex justify-content-between align-items-center bg-white p-3 border rounded shadow-sm h-100">
+                                 <div>
+                                   <small className="text-muted d-block text-uppercase" style={{fontSize: '0.7rem', letterSpacing: '0.5px'}}>Nombre Completo</small>
+                                   <strong className="fs-6">{pac.nombre}</strong>
+                                 </div>
+                                 <button className="btn btn-sm btn-light border" onClick={() => handleCopiarDato(pac.nombre, `nombre-${sesion.id}`)} title="Copiar nombre">
+                                    <i className={`bi ${copiadoId === `nombre-${sesion.id}` ? 'bi-check-lg text-success' : 'bi-copy text-secondary'}`}></i>
+                                 </button>
+                              </div>
+                            </div>
+
+                            {/* DNI */}
+                            <div className="col-12 col-md-4">
+                              <div className="d-flex justify-content-between align-items-center bg-white p-3 border rounded shadow-sm h-100">
+                                 <div>
+                                   <small className="text-muted d-block text-uppercase" style={{fontSize: '0.7rem', letterSpacing: '0.5px'}}>DNI</small>
+                                   <strong className="fs-6">{pac.dni || '-'}</strong>
+                                 </div>
+                                 <button className="btn btn-sm btn-light border" onClick={() => handleCopiarDato(pac.dni, `dni-${sesion.id}`)} disabled={!pac.dni} title="Copiar DNI">
+                                    <i className={`bi ${copiadoId === `dni-${sesion.id}` ? 'bi-check-lg text-success' : 'bi-copy text-secondary'}`}></i>
+                                 </button>
+                              </div>
+                            </div>
+
+                            {/* Fecha de Nacimiento */}
+                            <div className="col-12 col-md-4">
+                              <div className="d-flex justify-content-between align-items-center bg-white p-3 border rounded shadow-sm h-100">
+                                 <div>
+                                   <small className="text-muted d-block text-uppercase" style={{fontSize: '0.7rem', letterSpacing: '0.5px'}}>F. Nacimiento</small>
+                                   <strong className="fs-6">{fnac || '-'}</strong>
+                                 </div>
+                                 <button className="btn btn-sm btn-light border" onClick={() => handleCopiarDato(fnac, `fnac-${sesion.id}`)} disabled={!fnac} title="Copiar Fecha de Nacimiento">
+                                    <i className={`bi ${copiadoId === `fnac-${sesion.id}` ? 'bi-check-lg text-success' : 'bi-copy text-secondary'}`}></i>
+                                 </button>
+                              </div>
+                            </div>
+
+                            {/* Afiliado */}
+                            <div className="col-12 col-md-6">
+                              <div className="d-flex justify-content-between align-items-center bg-white p-3 border rounded shadow-sm h-100">
+                                 <div>
+                                   <small className="text-muted d-block text-uppercase" style={{fontSize: '0.7rem', letterSpacing: '0.5px'}}>Nº de Afiliado</small>
+                                   <strong className="fs-6">{afil || '-'}</strong>
+                                 </div>
+                                 <button className="btn btn-sm btn-light border" onClick={() => handleCopiarDato(afil, `afil-${sesion.id}`)} disabled={!afil} title="Copiar afiliado">
+                                    <i className={`bi ${copiadoId === `afil-${sesion.id}` ? 'bi-check-lg text-success' : 'bi-copy text-secondary'}`}></i>
+                                 </button>
+                              </div>
+                            </div>
+
+                            {/* Obra Social */}
+                            <div className="col-12 col-md-6">
+                              <div className="d-flex justify-content-between align-items-center bg-white p-3 border rounded shadow-sm h-100">
+                                 <div>
+                                   <small className="text-muted d-block text-uppercase" style={{fontSize: '0.7rem', letterSpacing: '0.5px'}}>Obra Social</small>
+                                   <strong className="fs-6">{os.nombre || '-'}</strong>
+                                 </div>
+                                 <button className="btn btn-sm btn-light border" onClick={() => handleCopiarDato(os.nombre, `os-${sesion.id}`)} disabled={!os.nombre} title="Copiar obra social">
+                                    <i className={`bi ${copiadoId === `os-${sesion.id}` ? 'bi-check-lg text-success' : 'bi-copy text-secondary'}`}></i>
+                                 </button>
+                              </div>
+                            </div>
+
+                            {/* Plan */}
+                            <div className="col-12 col-md-6">
+                              <div className="d-flex justify-content-between align-items-center bg-white p-3 border rounded shadow-sm h-100">
+                                 <div>
+                                   <small className="text-muted d-block text-uppercase" style={{fontSize: '0.7rem', letterSpacing: '0.5px'}}>Plan</small>
+                                   <strong className="fs-6">{plan.nombre || pac.planObraSocial || '-'}</strong>
+                                 </div>
+                                 <button className="btn btn-sm btn-light border" onClick={() => handleCopiarDato(plan.nombre || pac.planObraSocial, `plan-${sesion.id}`)} disabled={!(plan.nombre || pac.planObraSocial)} title="Copiar plan">
+                                    <i className={`bi ${copiadoId === `plan-${sesion.id}` ? 'bi-check-lg text-success' : 'bi-copy text-secondary'}`}></i>
+                                 </button>
+                              </div>
+                            </div>
+                            
+                            {/* Prácticas */}
+                            <div className="col-12">
+                              <div className="d-flex justify-content-between align-items-center bg-white p-3 border rounded shadow-sm h-100">
+                                 <div>
+                                   <small className="text-muted d-block text-uppercase" style={{fontSize: '0.7rem', letterSpacing: '0.5px'}}>Códigos de Práctica</small>
+                                   <strong className="fs-6">{practicasCodigosText || '-'}</strong>
+                                 </div>
+                                 <button className="btn btn-sm btn-light border" onClick={() => handleCopiarDato(practicasCodigosText, `prac-${sesion.id}`)} disabled={!practicasCodigosText} title="Copiar códigos">
+                                    <i className={`bi ${copiadoId === `prac-${sesion.id}` ? 'bi-check-lg text-success' : 'bi-copy text-secondary'}`}></i>
+                                 </button>
+                              </div>
+                            </div>
+                         </div>
+                       </div>
+
+                       <div className="col-12 col-lg-4 d-flex flex-column justify-content-end gap-2">
+                          <button
+                            className="btn btn-accent text-white btn-sm d-flex align-items-center justify-content-center gap-2 w-100 shadow-sm"
+                            onClick={() => handleFacturarEnPortal(sesion)}
+                            disabled={!portal.url}
+                            style={{ height: '44px', borderRadius: '8px' }}
+                          >
+                            <i className="bi bi-box-arrow-up-right fs-6"></i>
+                            <span className="fw-bold fs-6">{portal.nombre ? `Facturar en ${portal.nombre}` : 'Sin portal'}</span>
+                          </button>
+                          
+                          <button
+                            className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center gap-2 w-100"
+                            onClick={() => handleCopiarDatos(sesion)}
+                            style={{ height: '44px', borderRadius: '8px' }}
+                          >
+                            <i className={`bi ${copiadoId === sesion.id ? 'bi-check-lg text-success' : 'bi-clipboard'} fs-6`}></i>
+                            <span className="fs-6">Copiar resumen completo</span>
+                          </button>
+                       </div>
+                     </div>
+                  </div>
+                )}
               </div>
             );
           })}
